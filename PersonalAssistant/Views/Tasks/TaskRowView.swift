@@ -17,43 +17,41 @@ struct TaskRowView: View {
                     .fontWeight(.medium)
                     .strikethrough(task.completed == true)
                     .foregroundStyle(task.completed == true ? .secondary : .primary)
+                    .lineLimit(2)
 
-                HStack(spacing: 8) {
-                    // Due date
-                    if let dueDate = task.dueDate {
-                        Label(dueDateText(dueDate), systemImage: "calendar")
-                            .font(.caption)
-                            .foregroundStyle(dueDateColor(dueDate))
-                    }
-
-                    // Project name
-                    if let project = task.projects?.first, let projectName = project.name {
-                        Text(projectName)
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    }
+                // Project badge
+                if let project = task.projects?.first, let projectName = project.name {
+                    WorkspaceBadge(text: projectName, color: projectColor(projectName))
                 }
             }
 
             Spacer()
 
-            // Workspace badge
-            if let workspace = task.workspace {
-                WorkspaceBadge(text: workspace.displayName, color: workspaceColor(workspace))
+            // Due date
+            if let dueDate = task.dueDate {
+                Text(dueDateText(dueDate))
+                    .font(.caption)
+                    .foregroundStyle(dueDateColor(dueDate))
             }
         }
         .padding(.vertical, 2)
     }
 
+    private static let compactDateFormatter: DateFormatter = {
+        let f = DateFormatter()
+        f.setLocalizedDateFormatFromTemplate("MMMd")
+        return f
+    }()
+
     private func dueDateText(_ date: Date) -> String {
         if Calendar.current.isDateInToday(date) {
             return "Today"
         } else if Calendar.current.isDateInTomorrow(date) {
-            return "Tomorrow"
+            return "Tmrw"
         } else if Calendar.current.isDateInYesterday(date) {
-            return "Yesterday"
+            return "Yday"
         } else {
-            return DateFormatting.shortDate(date)
+            return Self.compactDateFormatter.string(from: date)
         }
     }
 
@@ -64,10 +62,9 @@ struct TaskRowView: View {
         return .secondary
     }
 
-    private func workspaceColor(_ workspace: AsanaWorkspace) -> Color {
-        // Generate a stable color from workspace name
+    private func projectColor(_ name: String) -> Color {
         let colors: [Color] = [.blue, .purple, .indigo, .teal, .cyan, .mint]
-        let index = abs(workspace.displayName.hashValue) % colors.count
+        let index = abs(name.hashValue) % colors.count
         return colors[index]
     }
 }

@@ -31,7 +31,7 @@ final class ChatService {
         When the user asks to create a task, use the create_asana_task tool.
         When the user says they've completed a task, use the complete_asana_task tool.
         When asked about upcoming or overdue tasks, use the get_tasks_due tool.
-        When asked about meetings or discussions, use the search_meeting_notes tool.
+        When asked about meetings or discussions, ALWAYS use the search_meeting_notes tool. The meeting titles listed in CONTEXT below are only titles — you do NOT have access to the content of any meeting unless you call the tool.
         When asked to change a due date, rename, or update task notes, use the update_asana_task tool.
         When asked about comments on a task, use the get_task_comments tool.
         When asked to add a comment to a task, use the add_task_comment tool.
@@ -80,7 +80,7 @@ final class ChatService {
         }
 
         if !cachedMeetings.isEmpty {
-            summary += "RECENT MEETINGS:\n"
+            summary += "RECENT MEETINGS (titles only — use search_meeting_notes tool to read content):\n"
             for meeting in cachedMeetings.prefix(5) {
                 summary += "- \(meeting.displayTitle) (\(meeting.createdAt))\n"
             }
@@ -234,8 +234,9 @@ final class ChatService {
         )
 
         let created = try await asana.createTask(task)
-        // Refresh cached tasks
-        lastContextRefresh = nil
+        // Add to cached tasks directly (don't invalidate cache — a re-fetch
+        // would cause Claude to see the new task in context and warn about a "duplicate")
+        cachedTasks.append(created)
 
         return "Task created: \"\(created.name)\" (ID: \(created.gid))\(created.dueOn.map { ", due: \($0)" } ?? "")"
     }
@@ -246,7 +247,10 @@ final class ChatService {
         }
 
         let completed = try await asana.completeTask(id: taskID)
-        lastContextRefresh = nil
+        // Update cached task in-place
+        if let idx = cachedTasks.firstIndex(where: { $0.gid == taskID }) {
+            cachedTasks[idx] = completed
+        }
 
         return "Task completed: \"\(completed.name)\""
     }
@@ -303,7 +307,10 @@ final class ChatService {
         }
 
         let updated = try await asana.updateTask(id: taskID, fields: fields)
-        lastContextRefresh = nil
+        // Update cached task in-place
+        if let idx = cachedTasks.firstIndex(where: { $0.gid == taskID }) {
+            cachedTasks[idx] = updated
+        }
 
         var changes: [String] = []
         if let dueOn = fields["due_on"] as? String { changes.append("due date → \(dueOn)") }
@@ -372,18 +379,28 @@ final class ChatService {
         for note in notes.prefix(5) {
             result += "\n## \(note.displayTitle) (\(note.createdAt))\n"
 
-            let detail: GranolaNoteDetail
-            if meetingNotes.isConfigured {
-                detail = try await meetingNotes.getNote(id: note.id)
-            } else {
-                detail = try await granola.getNote(id: note.id)
-            }
+            do {
+                let detail: GranolaNoteDetail
+                if meetingNotes.isConfigured {
+                    detail = try await meetingNotes.getNote(id: note.id)
+                } else {
+                    detail = try await granola.getNoteWithTranscript(id: note.id)
+                }
 
-            if let attendees = detail.attendees, !attendees.isEmpty {
-                result += "Attendees: \(attendees.map(\.displayName).joined(separator: ", "))\n"
-            }
-            if let summary = detail.summaryText {
-                result += "\(String(summary.prefix(2000)))\n"
+                if let attendees = detail.attendees, !attendees.isEmpty {
+                    result += "Attendees: \(attendees.map(\.displayName).joined(separator: ", "))\n"
+                }
+                if let summary = detail.summaryMarkdown ?? detail.summaryText, !summary.isEmpty {
+                    result += "\(String(summary.prefix(2000)))\n"
+                } else if let transcript = detail.transcript, !transcript.isEmpty {
+                    let text = transcript.map(\.text).joined(separator: " ")
+                    result += "\(String(text.prefix(2000)))\n"
+                } else {
+                    result += "(No content found for this meeting)\n"
+                }
+            } catch {
+                print("Failed to fetch detail for note \(note.id): \(error)")
+                result += "(Error reading note: \(error.localizedDescription))\n"
             }
         }
         return result

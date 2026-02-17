@@ -17,17 +17,23 @@ struct ContentView: View {
                 }
                 .tag(1)
 
+            MeetingListView()
+                .tabItem {
+                    Label("Meetings", systemImage: "person.2.fill")
+                }
+                .tag(2)
+
             ChatView()
                 .tabItem {
                     Label("Chat", systemImage: "bubble.left.and.bubble.right.fill")
                 }
-                .tag(2)
+                .tag(3)
 
             SettingsView()
                 .tabItem {
                     Label("Settings", systemImage: "gear")
                 }
-                .tag(3)
+                .tag(4)
         }
     }
 }

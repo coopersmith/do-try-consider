@@ -66,14 +66,16 @@ final class MeetingNotesReader: Sendable {
         defer { if securityScoped { folderURL.stopAccessingSecurityScopedResource() } }
 
         let files = try markdownFiles(in: folderURL)
-        let lowered = query.lowercased()
+        let queryWords = query.lowercased().split(separator: " ").map(String.init)
         var notes: [GranolaNoteListItem] = []
 
         for file in files {
             guard let parsed = parseMarkdownFile(at: file) else { continue }
-            let titleMatch = (parsed.title ?? "").lowercased().contains(lowered)
-            let bodyMatch = parsed.body.lowercased().contains(lowered)
-            if titleMatch || bodyMatch {
+            let titleLower = (parsed.title ?? "").lowercased()
+            let bodyLower = parsed.body.lowercased()
+            let combined = titleLower + " " + bodyLower
+            let matches = queryWords.allSatisfy { combined.contains($0) }
+            if matches {
                 notes.append(parsed.listItem)
             }
         }

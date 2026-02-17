@@ -64,7 +64,13 @@ struct TaskListView: View {
                 Button {
                     viewModel.sortBy = option
                 } label: {
-                    Label(option.rawValue, systemImage: viewModel.sortBy == option ? "checkmark" : "")
+                    HStack {
+                        Text(option.rawValue)
+                        Spacer()
+                        if viewModel.sortBy == option {
+                            Image(systemName: "checkmark")
+                        }
+                    }
                 }
             }
         }
@@ -75,13 +81,25 @@ struct TaskListView: View {
             Button {
                 viewModel.selectedWorkspace = nil
             } label: {
-                Label("All Workspaces", systemImage: viewModel.selectedWorkspace == nil ? "checkmark" : "")
+                HStack {
+                    Text("All Workspaces")
+                    Spacer()
+                    if viewModel.selectedWorkspace == nil {
+                        Image(systemName: "checkmark")
+                    }
+                }
             }
             ForEach(viewModel.workspaces) { ws in
                 Button {
                     viewModel.selectedWorkspace = ws
                 } label: {
-                    Label(ws.displayName, systemImage: viewModel.selectedWorkspace?.gid == ws.gid ? "checkmark" : "")
+                    HStack {
+                        Text(ws.displayName)
+                        Spacer()
+                        if viewModel.selectedWorkspace?.gid == ws.gid {
+                            Image(systemName: "checkmark")
+                        }
+                    }
                 }
             }
         }

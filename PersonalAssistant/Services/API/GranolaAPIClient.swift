@@ -59,9 +59,10 @@ final class GranolaAPIClient: Sendable {
 
     func searchNotes(query: String, days: Int = 30) async throws -> [GranolaNoteListItem] {
         let notes = try await getRecentNotes(days: days)
-        let lowered = query.lowercased()
+        let queryWords = query.lowercased().split(separator: " ").map(String.init)
         return notes.filter { note in
-            (note.title ?? "").lowercased().contains(lowered)
+            let title = (note.title ?? "").lowercased()
+            return queryWords.allSatisfy { title.contains($0) }
         }
     }
 

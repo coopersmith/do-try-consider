@@ -55,7 +55,7 @@ final class ClaudeAPIClient: Sendable {
         ],
         [
             "name": "search_meeting_notes",
-            "description": "Search through recent meeting notes from Granola. Use this when the user asks about meetings or what was discussed.",
+            "description": "Retrieve the full content of meeting notes. You MUST call this tool whenever the user asks about what was discussed, decided, or said in any meeting. The meeting titles in your context do NOT include content — only this tool can fetch it.",
             "input_schema": [
                 "type": "object",
                 "properties": [
