@@ -3,10 +3,18 @@ import Foundation
 @Observable
 @MainActor
 final class MeetingListViewModel {
+    // MARK: - Meeting Filter
+
+    enum MeetingFilter: String, CaseIterable {
+        case hasNotes = "Have Notes"
+        case all = "All Meetings"
+    }
+
     var meetings: [CalendarMeetingItem] = []
     var isLoading = false
     var error: String?
     var searchText = ""
+    var meetingFilter: MeetingFilter = .all
     var permissionStatus: CalendarPermissionStatus = .notDetermined
     var showCalendarChooser = false
     var showAllUpcoming = false
@@ -15,12 +23,27 @@ final class MeetingListViewModel {
     private let noteMatching = NoteMatchingService.shared
     private let upcomingPreviewCount = 3
 
+    // MARK: - Notes Count
+
+    /// Number of meetings that have a matched Granola note.
+    var notesCount: Int {
+        meetings.filter { $0.hasGranolaNote }.count
+    }
+
     // MARK: - Filtered Base
 
     private var filtered: [CalendarMeetingItem] {
-        guard !searchText.isEmpty else { return meetings }
+        var result = meetings
+
+        // Apply notes filter
+        if meetingFilter == .hasNotes {
+            result = result.filter { $0.hasGranolaNote }
+        }
+
+        // Apply search filter
+        guard !searchText.isEmpty else { return result }
         let query = searchText.lowercased()
-        return meetings.filter {
+        return result.filter {
             $0.title.lowercased().contains(query)
             || $0.calendarName.lowercased().contains(query)
             || ($0.location?.lowercased().contains(query) ?? false)

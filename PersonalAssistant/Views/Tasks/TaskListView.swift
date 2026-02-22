@@ -25,8 +25,14 @@ struct TaskListView: View {
                 }
             }
             .background(AppTheme.adaptiveBackground)
-            .navigationTitle("Tasks")
+            .inlineNavigationBarTitle()
             .toolbar {
+                ToolbarItem(placement: .principal) {
+                    Text("Tasks")
+                        .font(AppTheme.subheadlineFont)
+                        .fontWeight(.medium)
+                        .foregroundStyle(AppTheme.textSecondary)
+                }
                 ToolbarItem(placement: .automatic) {
                     filterMenu
                 }

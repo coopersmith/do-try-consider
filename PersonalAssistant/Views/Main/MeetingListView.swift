@@ -2,7 +2,6 @@ import SwiftUI
 
 struct MeetingListView: View {
     @State private var viewModel = MeetingListViewModel()
-
     var body: some View {
         NavigationStack {
             Group {
@@ -16,7 +15,15 @@ struct MeetingListView: View {
                 }
             }
             .background(AppTheme.adaptiveBackground)
-            .navigationTitle("Meetings")
+            .inlineNavigationBarTitle()
+            .toolbar {
+                ToolbarItem(placement: .principal) {
+                    Text("Meetings")
+                        .font(AppTheme.subheadlineFont)
+                        .fontWeight(.medium)
+                        .foregroundStyle(AppTheme.textSecondary)
+                }
+            }
             .task {
                 viewModel.checkPermission()
                 if viewModel.permissionStatus == .authorized && viewModel.meetings.isEmpty {
@@ -103,23 +110,37 @@ struct MeetingListView: View {
     // MARK: - Authorized Content
 
     private var authorizedContent: some View {
-        Group {
-            if viewModel.isLoading && viewModel.meetings.isEmpty {
-                LoadingIndicator("Loading meetings...")
-            } else if let error = viewModel.error, viewModel.meetings.isEmpty {
-                ErrorStateView(error) {
-                    Task { await viewModel.loadMeetings() }
+        VStack(spacing: 0) {
+            // Filter picker
+            Picker("Filter", selection: $viewModel.meetingFilter) {
+                ForEach(MeetingListViewModel.MeetingFilter.allCases, id: \.self) { filter in
+                    Text(filter.rawValue)
                 }
-            } else if viewModel.isEmpty {
-                EmptyStateView(
-                    icon: "calendar",
-                    title: "No Meetings",
-                    message: viewModel.meetings.isEmpty
-                        ? "No calendar events found."
-                        : "No meetings match your search."
-                )
-            } else {
-                meetingList
+            }
+            .pickerStyle(.segmented)
+            .padding(.horizontal)
+            .padding(.vertical, 8)
+
+            Group {
+                if viewModel.isLoading && viewModel.meetings.isEmpty {
+                    LoadingIndicator("Loading meetings...")
+                } else if let error = viewModel.error, viewModel.meetings.isEmpty {
+                    ErrorStateView(error) {
+                        Task { await viewModel.loadMeetings() }
+                    }
+                } else if viewModel.isEmpty {
+                    EmptyStateView(
+                        icon: "calendar",
+                        title: viewModel.meetingFilter == .hasNotes ? "No Meeting Notes" : "No Meetings",
+                        message: viewModel.meetingFilter == .hasNotes
+                            ? "No meetings with Granola notes found."
+                            : viewModel.meetings.isEmpty
+                                ? "No calendar events found."
+                                : "No meetings match your search."
+                    )
+                } else {
+                    meetingList
+                }
             }
         }
         .searchable(text: $viewModel.searchText, prompt: "Search meetings")
@@ -179,11 +200,7 @@ struct MeetingListView: View {
         .insetGroupedListStyle()
         .warmListBackground()
         .navigationDestination(for: CalendarMeetingItem.self) { meeting in
-            if let noteID = meeting.granolaNoteID {
-                MeetingDetailView(meetingID: noteID)
-            } else {
-                CalendarEventDetailView(meeting: meeting)
-            }
+            CalendarEventDetailView(meeting: meeting)
         }
     }
 
