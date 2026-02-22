@@ -1,9 +1,10 @@
 import Combine
 import SwiftUI
 
-struct ChatView: View {
-    @State private var viewModel = ChatViewModel()
+struct ChatOverlayView: View {
+    @Bindable var viewModel: ChatViewModel
     @FocusState private var isInputFocused: Bool
+    @Environment(\.dismiss) private var dismiss
 
     var body: some View {
         NavigationStack {
@@ -26,6 +27,7 @@ struct ChatView: View {
                     }
                     .padding(.vertical)
                 }
+                .warmScrollBackground()
                 .onChange(of: viewModel.messages.count) {
                     withAnimation {
                         if let lastID = viewModel.messages.last?.id {
@@ -44,12 +46,12 @@ struct ChatView: View {
                                 Image(systemName: "exclamationmark.triangle.fill")
                                     .foregroundStyle(.yellow)
                                 Text(error)
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
+                                    .font(AppTheme.captionFont)
+                                    .foregroundStyle(AppTheme.textSecondary)
                                 Spacer()
                                 Button { viewModel.error = nil } label: {
                                     Image(systemName: "xmark.circle.fill")
-                                        .foregroundStyle(.secondary)
+                                        .foregroundStyle(AppTheme.textSecondary)
                                 }
                             }
                             .padding(.horizontal)
@@ -74,7 +76,7 @@ struct ChatView: View {
                             } label: {
                                 Image(systemName: viewModel.isStreaming ? "stop.circle.fill" : "arrow.up.circle.fill")
                                     .font(.title2)
-                                    .foregroundStyle(viewModel.inputText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? .gray : .accentColor)
+                                    .foregroundStyle(viewModel.inputText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? Color.gray : AppTheme.accent)
                             }
                             .disabled(viewModel.inputText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && !viewModel.isStreaming)
                         }
@@ -86,6 +88,11 @@ struct ChatView: View {
             }
             .navigationTitle("Chat")
             .inlineNavigationBarTitle()
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Done") { dismiss() }
+                }
+            }
         }
     }
 }
@@ -113,14 +120,14 @@ struct ChatBubbleView: View {
                 if !message.content.isEmpty {
                     MarkdownTextView(text: message.content)
                         .padding(12)
-                        .background(message.role == .user ? Color.accentColor : Color.systemGray6Color)
+                        .background(message.role == .user ? AppTheme.accent : AppTheme.adaptiveCard)
                         .foregroundStyle(message.role == .user ? .white : .primary)
-                        .clipShape(RoundedRectangle(cornerRadius: 16))
+                        .clipShape(RoundedRectangle(cornerRadius: AppTheme.cornerRadiusMedium))
                 }
 
                 // Timestamp
                 Text(DateFormatting.time(message.timestamp))
-                    .font(.caption2)
+                    .font(AppTheme.caption2Font)
                     .foregroundStyle(.tertiary)
             }
 
@@ -144,22 +151,22 @@ struct ToolCallBadge: View {
                     .scaleEffect(0.7)
             } else {
                 Image(systemName: toolCall.result?.hasPrefix("Error") == true ? "xmark.circle.fill" : "checkmark.circle.fill")
-                    .foregroundStyle(toolCall.result?.hasPrefix("Error") == true ? .red : .green)
+                    .foregroundStyle(toolCall.result?.hasPrefix("Error") == true ? AppTheme.urgencyRed : AppTheme.urgencyGreen)
             }
 
             Text(toolDisplayName)
-                .font(.caption)
+                .font(AppTheme.captionFont)
                 .fontWeight(.medium)
 
             if let result = toolCall.result, !toolCall.isExecuting {
                 Text(result.prefix(50) + (result.count > 50 ? "..." : ""))
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
+                    .font(AppTheme.caption2Font)
+                    .foregroundStyle(AppTheme.textSecondary)
             }
         }
         .padding(.horizontal, 10)
         .padding(.vertical, 6)
-        .background(Color.systemGray5Color)
+        .background(AppTheme.adaptiveSecondary)
         .clipShape(Capsule())
     }
 
@@ -187,14 +194,14 @@ struct TypingIndicator: View {
         HStack(spacing: 4) {
             ForEach(0..<3) { i in
                 Circle()
-                    .fill(Color.secondary)
+                    .fill(AppTheme.textSecondary)
                     .frame(width: 6, height: 6)
                     .opacity(dotCount % 3 == i ? 1 : 0.3)
             }
         }
         .padding(12)
-        .background(Color.systemGray6Color)
-        .clipShape(RoundedRectangle(cornerRadius: 16))
+        .background(AppTheme.adaptiveCard)
+        .clipShape(RoundedRectangle(cornerRadius: AppTheme.cornerRadiusMedium))
         .onReceive(timer) { _ in
             dotCount += 1
         }

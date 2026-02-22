@@ -6,8 +6,7 @@ struct WorkspaceBadge: View {
 
     var body: some View {
         Text(text)
-            .font(.caption2)
-            .fontWeight(.medium)
+            .font(.system(.caption2, design: .serif, weight: .medium))
             .padding(.horizontal, 8)
             .padding(.vertical, 3)
             .background(color.opacity(0.15))

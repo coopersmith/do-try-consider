@@ -26,6 +26,19 @@ final class SettingsViewModel {
     var claudeError: String?
     var selectedModel: ClaudeAPIClient.Model = .haiku
 
+    // Calendar
+    var isCalendarAuthorized: Bool {
+        CalendarService.shared.permissionStatus == .authorized
+    }
+    var selectedCalendarCount: Int {
+        CalendarService.shared.selectedCalendarIDs.count
+    }
+    var calendarStatusText: String {
+        guard isCalendarAuthorized else { return "Not configured" }
+        if selectedCalendarCount == 0 { return "No calendars selected" }
+        return "\(selectedCalendarCount) calendar\(selectedCalendarCount == 1 ? "" : "s") selected"
+    }
+
     // Meeting Notes (local Obsidian)
     var isMeetingNotesConfigured: Bool = false
     var meetingNotesFolderName: String?

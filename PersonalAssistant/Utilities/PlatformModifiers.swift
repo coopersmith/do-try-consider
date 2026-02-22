@@ -18,4 +18,26 @@ extension View {
         self.listStyle(.inset)
         #endif
     }
+
+    @ViewBuilder
+    func warmScrollBackground() -> some View {
+        #if os(iOS)
+        self
+            .scrollContentBackground(.hidden)
+            .background(AppTheme.adaptiveBackground)
+        #else
+        self.background(AppTheme.adaptiveBackground)
+        #endif
+    }
+
+    @ViewBuilder
+    func warmListBackground() -> some View {
+        #if os(iOS)
+        self
+            .scrollContentBackground(.hidden)
+            .background(AppTheme.adaptiveBackground)
+        #else
+        self.background(AppTheme.adaptiveBackground)
+        #endif
+    }
 }

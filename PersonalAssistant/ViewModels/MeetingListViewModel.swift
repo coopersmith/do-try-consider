@@ -3,35 +3,62 @@ import Foundation
 @Observable
 @MainActor
 final class MeetingListViewModel {
-    var meetings: [GranolaNoteListItem] = []
+    var meetings: [CalendarMeetingItem] = []
     var isLoading = false
     var error: String?
     var searchText = ""
+    var permissionStatus: CalendarPermissionStatus = .notDetermined
+    var showCalendarChooser = false
+    var showAllUpcoming = false
 
-    private let granola = GranolaAPIClient.shared
-    private let meetingNotes = MeetingNotesReader.shared
-    private let tokenManager = TokenManager.shared
+    private let calendarService = CalendarService.shared
+    private let noteMatching = NoteMatchingService.shared
+    private let upcomingPreviewCount = 3
 
-    // MARK: - Computed Properties
+    // MARK: - Filtered Base
 
-    var filteredMeetings: [GranolaNoteListItem] {
-        let sorted = meetings.sorted { $0.createdAt > $1.createdAt }
-        guard !searchText.isEmpty else { return sorted }
+    private var filtered: [CalendarMeetingItem] {
+        guard !searchText.isEmpty else { return meetings }
         let query = searchText.lowercased()
-        return sorted.filter { $0.displayTitle.lowercased().contains(query) }
+        return meetings.filter {
+            $0.title.lowercased().contains(query)
+            || $0.calendarName.lowercased().contains(query)
+            || ($0.location?.lowercased().contains(query) ?? false)
+        }
     }
 
-    var groupedMeetings: [(String, [GranolaNoteListItem])] {
+    // MARK: - Upcoming
+
+    /// Future events (startDate >= now), sorted soonest-first.
+    var upcomingMeetings: [CalendarMeetingItem] {
+        let now = Date()
+        return filtered
+            .filter { $0.startDate >= now }
+            .sorted { $0.startDate < $1.startDate }
+    }
+
+    var visibleUpcomingMeetings: [CalendarMeetingItem] {
+        showAllUpcoming ? upcomingMeetings : Array(upcomingMeetings.prefix(upcomingPreviewCount))
+    }
+
+    var hasMoreUpcoming: Bool {
+        upcomingMeetings.count > upcomingPreviewCount
+    }
+
+    // MARK: - Past (grouped, reverse-chronological)
+
+    var pastGroupedMeetings: [(String, [CalendarMeetingItem])] {
         let calendar = Calendar.current
         let now = Date()
-        var groups: [String: [GranolaNoteListItem]] = [:]
+        var groups: [String: [CalendarMeetingItem]] = [:]
         let order = ["Today", "Yesterday", "This Week", "Earlier"]
 
-        for meeting in filteredMeetings {
-            guard let date = parseISO8601(meeting.createdAt) else {
-                groups["Earlier", default: []].append(meeting)
-                continue
-            }
+        let pastEvents = filtered
+            .filter { $0.startDate < now }
+            .sorted { $0.startDate > $1.startDate } // most recent first
+
+        for meeting in pastEvents {
+            let date = meeting.startDate
             if calendar.isDateInToday(date) {
                 groups["Today", default: []].append(meeting)
             } else if calendar.isDateInYesterday(date) {
@@ -49,41 +76,57 @@ final class MeetingListViewModel {
         }
     }
 
-    var isSourceConfigured: Bool {
-        meetingNotes.isConfigured || ((try? tokenManager.getGranolaAPIKey()) != nil)
+    var isEmpty: Bool {
+        upcomingMeetings.isEmpty && pastGroupedMeetings.isEmpty
+    }
+
+    // MARK: - Permission
+
+    func checkPermission() {
+        permissionStatus = calendarService.permissionStatus
+    }
+
+    func requestCalendarAccess() async {
+        let granted = await calendarService.requestAccess()
+        permissionStatus = granted ? .authorized : .denied
+        if granted {
+            showCalendarChooser = true
+        }
+    }
+
+    func onCalendarChooserDone(_ ids: Set<String>) {
+        calendarService.setSelectedCalendarIDs(ids)
+        showCalendarChooser = false
+        Task { await loadMeetings() }
+    }
+
+    func onCalendarChooserCancel() {
+        showCalendarChooser = false
+        Task { await loadMeetings() }
     }
 
     // MARK: - Loading
 
     func loadMeetings() async {
-        guard isSourceConfigured else {
-            error = "Configure meeting notes in Settings to see your meetings."
+        guard permissionStatus == .authorized else {
+            checkPermission()
             return
         }
 
         isLoading = true
         error = nil
 
-        do {
-            if meetingNotes.isConfigured {
-                meetings = try await meetingNotes.getRecentNotes(days: 30)
-            } else {
-                meetings = try await granola.getRecentNotes(days: 30)
-            }
-        } catch {
-            self.error = error.localizedDescription
-        }
+        let calendar = Calendar.current
+        let now = Date()
+        let past = calendar.date(byAdding: .day, value: -30, to: now)!
+        let future = calendar.date(byAdding: .day, value: 14, to: now)!
 
+        var events = calendarService.fetchEvents(from: past, to: future)
+
+        // Match Granola notes (best-effort)
+        events = await noteMatching.matchNotes(to: events)
+
+        meetings = events
         isLoading = false
-    }
-
-    // MARK: - Helpers
-
-    private func parseISO8601(_ string: String) -> Date? {
-        let formatter = ISO8601DateFormatter()
-        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-        if let date = formatter.date(from: string) { return date }
-        formatter.formatOptions = [.withInternetDateTime]
-        return formatter.date(from: string)
     }
 }

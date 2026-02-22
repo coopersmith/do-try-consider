@@ -8,6 +8,8 @@ final class BriefingService {
     private let meetingNotes = MeetingNotesReader.shared
     private let claude = ClaudeAPIClient.shared
     private let tokenManager = TokenManager.shared
+    private let calendarService = CalendarService.shared
+    private let noteMatching = NoteMatchingService.shared
 
     func generateBriefing(type: Briefing.BriefingType) async throws -> Briefing {
         var briefing = Briefing(type: type)
@@ -23,6 +25,9 @@ final class BriefingService {
         if let _ = try? tokenManager.getClaudeAPIKey() {
             let summary = try? await generateAISummary(data: data, type: type)
             briefing.aiSummary = summary
+            if let summary {
+                briefing.aiSummaryCards = BriefingSummaryCard.parse(from: summary)
+            }
         }
 
         return briefing
@@ -65,22 +70,21 @@ final class BriefingService {
             }
         }
 
-        // Fetch meeting data (prefer local Obsidian notes, fall back to Granola API)
-        var recentMeetings: [GranolaNoteListItem] = []
+        // Fetch calendar events for today
+        var calendarEvents: [CalendarMeetingItem] = []
         var meetingDetails: [GranolaNoteDetail] = []
 
-        let days = type == .morning ? 1 : 1 // Yesterday for morning, today for evening
-        if meetingNotes.isConfigured {
-            recentMeetings = (try? await meetingNotes.getRecentNotes(days: days)) ?? []
-            for meeting in recentMeetings.prefix(3) {
-                if let detail = try? await meetingNotes.getNote(id: meeting.id) {
-                    meetingDetails.append(detail)
-                }
-            }
-        } else if let _ = try? tokenManager.getGranolaAPIKey() {
-            recentMeetings = (try? await granola.getRecentNotes(days: days)) ?? []
-            for meeting in recentMeetings.prefix(3) {
-                if let detail = try? await granola.getNote(id: meeting.id) {
+        let todayStart = Calendar.current.startOfDay(for: Date())
+        let todayEnd = Calendar.current.date(byAdding: .day, value: 1, to: todayStart)!
+
+        if calendarService.permissionStatus == .authorized {
+            calendarEvents = calendarService.fetchEvents(from: todayStart, to: todayEnd)
+            calendarEvents = await noteMatching.matchNotes(to: calendarEvents)
+
+            // Fetch Granola details for matched events (for AI context)
+            for event in calendarEvents where event.hasGranolaNote {
+                if let noteID = event.granolaNoteID,
+                   let detail = try? await granola.getNote(id: noteID) {
                     meetingDetails.append(detail)
                 }
             }
@@ -91,7 +95,7 @@ final class BriefingService {
             overdueTasks: allOverdueTasks,
             upcomingTasks: allUpcomingTasks,
             completedToday: allCompletedToday,
-            recentMeetings: recentMeetings,
+            calendarEvents: calendarEvents,
             meetingDetails: meetingDetails,
             workspaces: workspaces
         )
@@ -140,16 +144,17 @@ final class BriefingService {
                 ))
             }
 
-            // Today's meetings
-            if !data.recentMeetings.isEmpty {
+            // Today's meetings (from calendar)
+            if !data.calendarEvents.isEmpty {
                 sections.append(BriefingSection(
-                    title: "Recent Meetings",
-                    icon: "person.2.fill",
-                    items: data.recentMeetings.prefix(5).map { meeting in
-                        BriefingItem(
-                            title: meeting.displayTitle,
-                            subtitle: nil,
-                            badge: BriefingItem.BadgeInfo(text: "Meeting", color: .purple)
+                    title: "Today's Meetings",
+                    icon: "calendar",
+                    items: data.calendarEvents.prefix(5).map { event in
+                        let timeText = event.isAllDay ? "All Day" : DateFormatting.time(event.startDate)
+                        return BriefingItem(
+                            title: event.title,
+                            subtitle: timeText,
+                            badge: BriefingItem.BadgeInfo(text: "Calendar", color: .blue)
                         )
                     }
                 ))
@@ -202,15 +207,17 @@ final class BriefingService {
                 ))
             }
 
-            // Meetings attended
-            if !data.meetingDetails.isEmpty {
+            // Meetings attended (from calendar)
+            if !data.calendarEvents.isEmpty {
                 sections.append(BriefingSection(
                     title: "Today's Meetings",
-                    icon: "person.2.fill",
-                    items: data.meetingDetails.map { meeting in
-                        BriefingItem(
-                            title: meeting.displayTitle,
-                            subtitle: meeting.summaryText?.prefix(100).description
+                    icon: "calendar",
+                    items: data.calendarEvents.map { event in
+                        let timeText = event.isAllDay ? "All Day" : DateFormatting.time(event.startDate)
+                        let noteSuffix = event.hasGranolaNote ? " (has notes)" : ""
+                        return BriefingItem(
+                            title: event.title,
+                            subtitle: timeText + noteSuffix
                         )
                     }
                 ))
@@ -239,20 +246,42 @@ final class BriefingService {
         switch type {
         case .morning:
             prompt = """
-            Generate a brief, friendly morning briefing summary (2-3 short paragraphs).
-            Highlight the most important things to focus on today.
-            If there are overdue tasks, mention them with urgency.
-            Suggest priorities based on due dates and meeting action items.
-            Keep it concise and actionable.
+            Generate a morning briefing organized into categories. Use EXACTLY these markdown headings (include only categories that have relevant content):
+
+            ### Priorities
+            Top 2-3 things to focus on today (1-2 sentences each).
+
+            ### Overdue Alert
+            Only if there are overdue tasks. Be direct about what needs attention.
+
+            ### Meeting Insights
+            Only if there are recent meetings. Key takeaways or prep notes.
+
+            ### Action Items
+            Bullet list of concrete next steps from tasks and meetings.
+
+            Keep each section to 2-4 sentences or bullets. Be concise and actionable.
             """
         case .evening:
             prompt = """
-            Generate a brief evening recap (2-3 short paragraphs).
-            Celebrate completed work.
-            Note any tasks that were due today but not completed.
-            Summarize meeting outcomes and action items.
-            Suggest follow-ups for tomorrow.
-            Keep it encouraging and constructive.
+            Generate an evening recap organized into categories. Use EXACTLY these markdown headings (include only categories that have relevant content):
+
+            ### Progress
+            Celebrate completed work. What was accomplished today.
+
+            ### Overdue Alert
+            Only if tasks were due today but not completed. Be constructive, not harsh.
+
+            ### Meeting Insights
+            Only if there were meetings. Key outcomes and decisions.
+
+            ### Action Items
+            Bullet list of follow-ups for tomorrow.
+
+            ### Looking Ahead
+            Brief note on what's coming tomorrow/this week.
+
+            Keep each section to 2-4 sentences or bullets. Be encouraging and constructive.
             """
         }
 

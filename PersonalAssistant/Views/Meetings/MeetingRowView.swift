@@ -1,44 +1,64 @@
 import SwiftUI
 
 struct MeetingRowView: View {
-    let meeting: GranolaNoteListItem
+    let meeting: CalendarMeetingItem
 
     var body: some View {
-        HStack(spacing: 12) {
-            Image(systemName: "person.2.fill")
-                .foregroundStyle(.purple)
-                .font(.title3)
-                .frame(width: 28)
+        HStack(spacing: 0) {
+            // Time column
+            VStack(spacing: 2) {
+                if meeting.isAllDay {
+                    Text("All")
+                        .font(AppTheme.captionFont)
+                        .fontWeight(.medium)
+                    Text("Day")
+                        .font(AppTheme.caption2Font)
+                        .foregroundStyle(AppTheme.textSecondary)
+                } else {
+                    Text(DateFormatting.time(meeting.startDate))
+                        .font(AppTheme.captionFont)
+                        .fontWeight(.medium)
+                    Text(DateFormatting.time(meeting.endDate))
+                        .font(AppTheme.caption2Font)
+                        .foregroundStyle(AppTheme.textSecondary)
+                }
+            }
+            .frame(width: 50)
 
+            // Calendar color bar
+            RoundedRectangle(cornerRadius: 2)
+                .fill(Color(hex: meeting.calendarColorHex))
+                .frame(width: 4)
+                .padding(.vertical, 2)
+                .padding(.horizontal, 8)
+
+            // Title + badges
             VStack(alignment: .leading, spacing: 4) {
-                Text(meeting.displayTitle)
-                    .font(.subheadline)
+                Text(meeting.title)
+                    .font(AppTheme.subheadlineFont)
                     .fontWeight(.medium)
                     .lineLimit(2)
 
-                if meeting.id.hasPrefix("local-") {
-                    WorkspaceBadge(text: "Local", color: .teal)
-                } else {
-                    WorkspaceBadge(text: "Granola", color: .purple)
+                HStack(spacing: 6) {
+                    if meeting.hasGranolaNote {
+                        WorkspaceBadge(text: "Notes", color: AppTheme.badgeGranola)
+                    }
+
+                    if let location = meeting.location, !location.isEmpty {
+                        HStack(spacing: 3) {
+                            Image(systemName: "mappin")
+                                .font(.system(size: 9))
+                            Text(location)
+                                .lineLimit(1)
+                        }
+                        .font(AppTheme.caption2Font)
+                        .foregroundStyle(AppTheme.textSecondary)
+                    }
                 }
             }
 
             Spacer()
-
-            if let date = parseDate(meeting.createdAt) {
-                Text(DateFormatting.relative(date))
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
         }
         .padding(.vertical, 2)
-    }
-
-    private func parseDate(_ string: String) -> Date? {
-        let formatter = ISO8601DateFormatter()
-        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-        if let date = formatter.date(from: string) { return date }
-        formatter.formatOptions = [.withInternetDateTime]
-        return formatter.date(from: string)
     }
 }

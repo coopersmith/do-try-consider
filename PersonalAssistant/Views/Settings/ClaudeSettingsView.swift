@@ -12,34 +12,37 @@ struct ClaudeSettingsView: View {
                 VStack(spacing: 12) {
                     Image(systemName: "sparkles")
                         .font(.system(size: 48))
-                        .foregroundStyle(Color.accentColor)
+                        .foregroundStyle(AppTheme.accent)
 
                     Text("Claude AI")
-                        .font(.headline)
+                        .font(AppTheme.headlineFont)
 
                     Text("Enter your Anthropic API key to enable AI-powered briefings, chat, and task suggestions.")
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
+                        .font(AppTheme.subheadlineFont)
+                        .foregroundStyle(AppTheme.textSecondary)
                         .multilineTextAlignment(.center)
                 }
                 .padding(.vertical)
                 .frame(maxWidth: .infinity)
+                .listRowBackground(AppTheme.adaptiveCard)
             }
 
             Section {
                 if viewModel.isClaudeConfigured {
                     HStack {
                         Image(systemName: "checkmark.circle.fill")
-                            .foregroundStyle(.green)
+                            .foregroundStyle(AppTheme.urgencyGreen)
                         Text("API Key Configured")
                         Spacer()
                     }
+                    .listRowBackground(AppTheme.adaptiveCard)
 
                     Button(role: .destructive) {
                         viewModel.clearClaudeAPIKey()
                     } label: {
                         Label("Remove API Key", systemImage: "trash")
                     }
+                    .listRowBackground(AppTheme.adaptiveCard)
                 } else {
                     HStack {
                         if showingAPIKey {
@@ -56,9 +59,10 @@ struct ClaudeSettingsView: View {
                             showingAPIKey.toggle()
                         } label: {
                             Image(systemName: showingAPIKey ? "eye.slash" : "eye")
-                                .foregroundStyle(.secondary)
+                                .foregroundStyle(AppTheme.textSecondary)
                         }
                     }
+                    .listRowBackground(AppTheme.adaptiveCard)
 
                     Button {
                         viewModel.saveClaudeAPIKey()
@@ -67,7 +71,9 @@ struct ClaudeSettingsView: View {
                             .frame(maxWidth: .infinity)
                     }
                     .buttonStyle(.borderedProminent)
+                    .tint(AppTheme.accent)
                     .disabled(viewModel.claudeAPIKey.isEmpty)
+                    .listRowBackground(AppTheme.adaptiveCard)
                 }
             } header: {
                 Text("API Key")
@@ -78,7 +84,7 @@ struct ClaudeSettingsView: View {
             Section {
                 VStack(alignment: .leading, spacing: 8) {
                     Text("Model")
-                        .font(.subheadline)
+                        .font(AppTheme.subheadlineFont)
                         .fontWeight(.medium)
 
                     HStack(spacing: 12) {
@@ -99,6 +105,7 @@ struct ClaudeSettingsView: View {
                         }
                     }
                 }
+                .listRowBackground(AppTheme.adaptiveCard)
             } header: {
                 Text("Model Selection")
             } footer: {
@@ -108,11 +115,13 @@ struct ClaudeSettingsView: View {
             if let error = viewModel.claudeError {
                 Section {
                     Label(error, systemImage: "exclamationmark.triangle")
-                        .foregroundStyle(.red)
-                        .font(.caption)
+                        .foregroundStyle(AppTheme.urgencyRed)
+                        .font(AppTheme.captionFont)
                 }
             }
         }
+        .insetGroupedListStyle()
+        .warmListBackground()
         .navigationTitle("Claude AI")
         .inlineNavigationBarTitle()
     }
@@ -128,20 +137,19 @@ struct ModelOption: View {
         Button(action: action) {
             VStack(spacing: 4) {
                 Text(name)
-                    .font(.subheadline)
-                    .fontWeight(.semibold)
+                    .font(.system(.subheadline, design: .serif, weight: .semibold))
                 Text(description)
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
+                    .font(AppTheme.caption2Font)
+                    .foregroundStyle(AppTheme.textSecondary)
             }
             .frame(maxWidth: .infinity)
             .padding(.vertical, 10)
-            .background(isSelected ? Color.accentColor.opacity(0.15) : Color.systemGray6Color)
+            .background(isSelected ? AppTheme.accent.opacity(0.12) : AppTheme.adaptiveSecondary)
             .overlay(
-                RoundedRectangle(cornerRadius: 10)
-                    .stroke(isSelected ? Color.accentColor : Color.clear, lineWidth: 2)
+                RoundedRectangle(cornerRadius: AppTheme.cornerRadiusSmall)
+                    .stroke(isSelected ? AppTheme.accent : Color.clear, lineWidth: 2)
             )
-            .clipShape(RoundedRectangle(cornerRadius: 10))
+            .clipShape(RoundedRectangle(cornerRadius: AppTheme.cornerRadiusSmall))
         }
         .buttonStyle(.plain)
     }

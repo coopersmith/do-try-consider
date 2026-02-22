@@ -30,6 +30,7 @@ struct MeetingDetailView: View {
                 meetingContent(detail)
             }
         }
+        .background(AppTheme.adaptiveBackground)
         .navigationTitle("Meeting Details")
         .inlineNavigationBarTitle()
         .task {
@@ -46,71 +47,71 @@ struct MeetingDetailView: View {
                 // Header
                 VStack(alignment: .leading, spacing: 8) {
                     Text(detail.displayTitle)
-                        .font(.title3)
-                        .fontWeight(.semibold)
+                        .font(AppTheme.title3Font)
 
                     if detail.id.hasPrefix("local-") {
-                        WorkspaceBadge(text: "Local Notes", color: .teal)
+                        WorkspaceBadge(text: "Local Notes", color: AppTheme.badgeLocal)
                     } else {
-                        WorkspaceBadge(text: "Granola", color: .purple)
+                        WorkspaceBadge(text: "Granola", color: AppTheme.badgeGranola)
                     }
                 }
 
                 Divider()
 
                 // Metadata
-                VStack(alignment: .leading, spacing: 12) {
-                    if let date = parseDate(detail.createdAt) {
-                        MetadataRow(icon: "calendar", label: "Date", value: DateFormatting.fullDate(date))
-                    }
+                WarmCard {
+                    VStack(alignment: .leading, spacing: 12) {
+                        if let date = parseDate(detail.createdAt) {
+                            MetadataRow(icon: "calendar", label: "Date", value: DateFormatting.fullDate(date))
+                        }
 
-                    if let event = detail.calendarEvent,
-                       let start = event.scheduledStartTime,
-                       let startDate = parseDate(start) {
-                        let endText = event.scheduledEndTime
-                            .flatMap { parseDate($0) }
-                            .map { " – \(DateFormatting.time($0))" } ?? ""
-                        MetadataRow(icon: "clock", label: "Time", value: DateFormatting.time(startDate) + endText)
-                    }
+                        if let event = detail.calendarEvent,
+                           let start = event.scheduledStartTime,
+                           let startDate = parseDate(start) {
+                            let endText = event.scheduledEndTime
+                                .flatMap { parseDate($0) }
+                                .map { " – \(DateFormatting.time($0))" } ?? ""
+                            MetadataRow(icon: "clock", label: "Time", value: DateFormatting.time(startDate) + endText)
+                        }
 
-                    if let attendees = detail.attendees, !attendees.isEmpty {
-                        MetadataRow(icon: "person.2", label: "Attendees", value: "\(attendees.count) people")
+                        if let attendees = detail.attendees, !attendees.isEmpty {
+                            MetadataRow(icon: "person.2", label: "Attendees", value: "\(attendees.count) people")
+                        }
                     }
                 }
 
                 // Attendees
                 if let attendees = detail.attendees, !attendees.isEmpty {
-                    Divider()
                     attendeesSection(attendees)
                 }
 
                 // AI Summary
-                Divider()
                 aiSummarySection(detail)
 
                 // Meeting Notes
                 if let markdown = detail.summaryMarkdown, !markdown.isEmpty {
-                    Divider()
-                    VStack(alignment: .leading, spacing: 8) {
-                        Text("Meeting Notes")
-                            .font(.headline)
-                        MarkdownTextView(text: markdown)
-                            .font(.body)
+                    WarmCard {
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text("Meeting Notes")
+                                .font(AppTheme.sectionHeaderFont)
+                            MarkdownTextView(text: markdown)
+                                .font(AppTheme.bodyFont)
+                        }
                     }
                 } else if let text = detail.summaryText, !text.isEmpty {
-                    Divider()
-                    VStack(alignment: .leading, spacing: 8) {
-                        Text("Meeting Notes")
-                            .font(.headline)
-                        Text(text)
-                            .font(.body)
-                            .foregroundStyle(.secondary)
+                    WarmCard {
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text("Meeting Notes")
+                                .font(AppTheme.sectionHeaderFont)
+                            Text(text)
+                                .font(AppTheme.bodyFont)
+                                .foregroundStyle(AppTheme.textSecondary)
+                        }
                     }
                 }
 
                 // Transcript
                 if let transcript = detail.transcript, !transcript.isEmpty {
-                    Divider()
                     transcriptSection(transcript)
                 }
 
@@ -118,6 +119,7 @@ struct MeetingDetailView: View {
             }
             .padding()
         }
+        .warmScrollBackground()
     }
 
     // MARK: - Attendees
@@ -126,19 +128,19 @@ struct MeetingDetailView: View {
     private func attendeesSection(_ attendees: [GranolaAttendee]) -> some View {
         VStack(alignment: .leading, spacing: 8) {
             Text("Attendees")
-                .font(.headline)
+                .font(AppTheme.sectionHeaderFont)
 
             ForEach(attendees.indices, id: \.self) { index in
                 HStack(spacing: 8) {
                     Image(systemName: "person.circle.fill")
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(AppTheme.textSecondary)
                     VStack(alignment: .leading, spacing: 1) {
                         Text(attendees[index].displayName)
-                            .font(.subheadline)
+                            .font(AppTheme.subheadlineFont)
                         if let email = attendees[index].email, attendees[index].name != nil {
                             Text(email)
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
+                                .font(AppTheme.captionFont)
+                                .foregroundStyle(AppTheme.textSecondary)
                         }
                     }
                 }
@@ -152,27 +154,26 @@ struct MeetingDetailView: View {
     private func aiSummarySection(_ detail: GranolaNoteDetail) -> some View {
         VStack(alignment: .leading, spacing: 12) {
             Label("AI Summary", systemImage: "sparkles")
-                .font(.headline)
+                .font(AppTheme.sectionHeaderFont)
 
             if let summary = aiSummary {
                 VStack(alignment: .leading, spacing: 12) {
                     MarkdownTextView(text: summary)
-                        .font(.subheadline)
+                        .font(AppTheme.subheadlineFont)
 
                     if !actionItems.isEmpty {
                         VStack(alignment: .leading, spacing: 6) {
                             Text("Action Items")
-                                .font(.subheadline)
-                                .fontWeight(.semibold)
+                                .font(AppTheme.sectionHeaderFont)
 
                             ForEach(actionItems.indices, id: \.self) { index in
                                 HStack(alignment: .top, spacing: 8) {
                                     Image(systemName: "circle")
-                                        .font(.caption)
-                                        .foregroundStyle(.secondary)
+                                        .font(AppTheme.captionFont)
+                                        .foregroundStyle(AppTheme.textSecondary)
                                         .padding(.top, 3)
                                     Text(actionItems[index])
-                                        .font(.subheadline)
+                                        .font(AppTheme.subheadlineFont)
                                 }
                             }
                         }
@@ -182,37 +183,37 @@ struct MeetingDetailView: View {
                         Task { await generateSummary(detail) }
                     } label: {
                         Label("Regenerate", systemImage: "arrow.clockwise")
-                            .font(.caption)
+                            .font(AppTheme.captionFont)
                     }
                     .buttonStyle(.bordered)
                     .controlSize(.small)
                 }
-                .padding()
+                .padding(AppTheme.cardPadding)
                 .background(
-                    RoundedRectangle(cornerRadius: 12)
-                        .fill(Color.accentColor.opacity(0.08))
+                    RoundedRectangle(cornerRadius: AppTheme.cornerRadiusCard)
+                        .fill(AppTheme.accent.opacity(0.08))
                 )
                 .overlay(
-                    RoundedRectangle(cornerRadius: 12)
-                        .stroke(Color.accentColor.opacity(0.2), lineWidth: 1)
+                    RoundedRectangle(cornerRadius: AppTheme.cornerRadiusCard)
+                        .stroke(AppTheme.accent.opacity(0.2), lineWidth: 1)
                 )
             } else if isGeneratingSummary {
                 HStack(spacing: 8) {
                     ProgressView()
                         .scaleEffect(0.8)
                     Text("Generating summary...")
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
+                        .font(AppTheme.subheadlineFont)
+                        .foregroundStyle(AppTheme.textSecondary)
                 }
-                .padding()
+                .padding(AppTheme.cardPadding)
                 .frame(maxWidth: .infinity, alignment: .leading)
-                .background(Color.systemGray6Color)
-                .clipShape(RoundedRectangle(cornerRadius: 12))
+                .background(AppTheme.adaptiveCard)
+                .clipShape(RoundedRectangle(cornerRadius: AppTheme.cornerRadiusCard))
             } else if let summaryError {
                 VStack(alignment: .leading, spacing: 8) {
                     Text(summaryError)
-                        .font(.caption)
-                        .foregroundStyle(.red)
+                        .font(AppTheme.captionFont)
+                        .foregroundStyle(AppTheme.urgencyRed)
                     Button("Try Again") {
                         Task { await generateSummary(detail) }
                     }
@@ -232,15 +233,16 @@ struct MeetingDetailView: View {
                         Label("Generate Summary", systemImage: "sparkles")
                     }
                     .buttonStyle(.borderedProminent)
+                    .tint(AppTheme.accent)
                     .controlSize(.small)
                 } else if !hasClaudeKey {
                     Text("Add your Claude API key in Settings to generate AI summaries.")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+                        .font(AppTheme.captionFont)
+                        .foregroundStyle(AppTheme.textSecondary)
                 } else {
                     Text("No meeting content available to summarize.")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+                        .font(AppTheme.captionFont)
+                        .foregroundStyle(AppTheme.textSecondary)
                 }
             }
         }
@@ -257,19 +259,19 @@ struct MeetingDetailView: View {
                     VStack(alignment: .leading, spacing: 2) {
                         if let speaker = segment.speaker?.source {
                             Text(speaker)
-                                .font(.caption)
+                                .font(AppTheme.captionFont)
                                 .fontWeight(.semibold)
-                                .foregroundStyle(.secondary)
+                                .foregroundStyle(AppTheme.textSecondary)
                         }
                         Text(segment.text)
-                            .font(.caption)
+                            .font(AppTheme.captionFont)
                     }
                     .padding(.vertical, 2)
                 }
             }
         } label: {
             Text("Transcript")
-                .font(.headline)
+                .font(AppTheme.sectionHeaderFont)
         }
     }
 

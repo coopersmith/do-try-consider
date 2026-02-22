@@ -24,6 +24,7 @@ struct TaskListView: View {
                     taskList
                 }
             }
+            .background(AppTheme.adaptiveBackground)
             .navigationTitle("Tasks")
             .toolbar {
                 ToolbarItem(placement: .automatic) {
@@ -55,6 +56,7 @@ struct TaskListView: View {
             }
         } label: {
             Image(systemName: "line.3.horizontal.decrease.circle")
+                .foregroundStyle(AppTheme.accent)
         }
     }
 
@@ -107,11 +109,12 @@ struct TaskListView: View {
 
     private var taskList: some View {
         List {
-            taskSection(tasks: viewModel.overdueTasks, title: "Overdue", icon: "exclamationmark.triangle.fill", color: .red)
-            taskSection(tasks: viewModel.dueTodayTasks, title: "Due Today", icon: "calendar.badge.exclamationmark", color: .orange)
-            taskSection(tasks: viewModel.upcomingTasks, title: "Upcoming", icon: "calendar", color: .primary)
+            taskSection(tasks: viewModel.overdueTasks, title: "OVERDUE", icon: "exclamationmark.triangle.fill", color: AppTheme.urgencyRed)
+            taskSection(tasks: viewModel.dueTodayTasks, title: "DUE TODAY", icon: "calendar.badge.exclamationmark", color: AppTheme.urgencyOrange)
+            taskSection(tasks: viewModel.upcomingTasks, title: "UPCOMING", icon: "calendar", color: AppTheme.textPrimary)
         }
         .insetGroupedListStyle()
+        .warmListBackground()
         .navigationDestination(for: String.self) { taskID in
             TaskDetailView(taskID: taskID)
         }
@@ -125,17 +128,21 @@ struct TaskListView: View {
                     NavigationLink(value: task.gid) {
                         TaskRowView(task: task)
                     }
+                    .listRowBackground(AppTheme.adaptiveCard)
                     .swipeActions(edge: .trailing) {
                         Button {
                             Task { await viewModel.completeTask(task) }
                         } label: {
                             Label("Complete", systemImage: "checkmark")
                         }
-                        .tint(.green)
+                        .tint(AppTheme.urgencyGreen)
                     }
                 }
             } header: {
                 Label(title, systemImage: icon)
+                    .font(AppTheme.captionFont)
+                    .fontWeight(.semibold)
+                    .tracking(0.8)
                     .foregroundStyle(color)
             }
         }

@@ -11,8 +11,8 @@ struct LoadingIndicator: View {
         VStack(spacing: 12) {
             ProgressView()
             Text(message)
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
+                .font(AppTheme.subheadlineFont)
+                .foregroundStyle(AppTheme.textSecondary)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
@@ -22,20 +22,20 @@ struct ShimmerView: View {
     @State private var phase: CGFloat = 0
 
     var body: some View {
-        RoundedRectangle(cornerRadius: 8)
-            .fill(Color.systemGray5Color)
+        RoundedRectangle(cornerRadius: AppTheme.cornerRadiusSmall)
+            .fill(AppTheme.adaptiveSecondary)
             .overlay(
-                RoundedRectangle(cornerRadius: 8)
+                RoundedRectangle(cornerRadius: AppTheme.cornerRadiusSmall)
                     .fill(
                         LinearGradient(
-                            gradient: Gradient(colors: [.clear, Color.white.opacity(0.3), .clear]),
+                            gradient: Gradient(colors: [.clear, Color.white.opacity(0.2), .clear]),
                             startPoint: .leading,
                             endPoint: .trailing
                         )
                     )
                     .offset(x: phase)
             )
-            .clipShape(RoundedRectangle(cornerRadius: 8))
+            .clipShape(RoundedRectangle(cornerRadius: AppTheme.cornerRadiusSmall))
             .onAppear {
                 withAnimation(.linear(duration: 1.5).repeatForever(autoreverses: false)) {
                     phase = 300
@@ -57,16 +57,17 @@ struct ErrorStateView: View {
         VStack(spacing: 16) {
             Image(systemName: "exclamationmark.triangle")
                 .font(.largeTitle)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(AppTheme.textSecondary)
 
             Text(message)
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
+                .font(AppTheme.subheadlineFont)
+                .foregroundStyle(AppTheme.textSecondary)
                 .multilineTextAlignment(.center)
 
             if let retryAction {
                 Button("Try Again", action: retryAction)
                     .buttonStyle(.bordered)
+                    .tint(AppTheme.accent)
             }
         }
         .padding()
@@ -83,14 +84,14 @@ struct EmptyStateView: View {
         VStack(spacing: 12) {
             Image(systemName: icon)
                 .font(.system(size: 48))
-                .foregroundStyle(.secondary)
+                .foregroundStyle(AppTheme.textSecondary)
 
             Text(title)
-                .font(.headline)
+                .font(AppTheme.sectionHeaderFont)
 
             Text(message)
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
+                .font(AppTheme.subheadlineFont)
+                .foregroundStyle(AppTheme.textSecondary)
                 .multilineTextAlignment(.center)
         }
         .padding()

@@ -14,6 +14,13 @@ final class BriefingViewModel {
         return hour < 16 ? .morning : .evening
     }
 
+    var greeting: String {
+        let hour = Calendar.current.component(.hour, from: Date())
+        if hour < 12 { return "Good Morning" }
+        if hour < 17 { return "Good Afternoon" }
+        return "Good Evening"
+    }
+
     func loadBriefing() async {
         guard !isLoading else { return }
         isLoading = true

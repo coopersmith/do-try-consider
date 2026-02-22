@@ -19,31 +19,52 @@ struct SettingsView: View {
 
                             VStack(alignment: .leading) {
                                 Text("Asana")
-                                    .font(.subheadline)
+                                    .font(AppTheme.subheadlineFont)
                                 Text(viewModel.isAsanaConnected ? "Connected" : "Not connected")
-                                    .font(.caption)
-                                    .foregroundStyle(viewModel.isAsanaConnected ? .green : .secondary)
+                                    .font(AppTheme.captionFont)
+                                    .foregroundStyle(viewModel.isAsanaConnected ? AppTheme.urgencyGreen : AppTheme.textSecondary)
                             }
                         }
                     }
+                    .listRowBackground(AppTheme.adaptiveCard)
+
+                    NavigationLink {
+                        CalendarSettingsView()
+                    } label: {
+                        HStack {
+                            Image(systemName: "calendar")
+                                .foregroundStyle(AppTheme.badgeCalendar)
+                                .frame(width: 28)
+
+                            VStack(alignment: .leading) {
+                                Text("Calendar")
+                                    .font(AppTheme.subheadlineFont)
+                                Text(viewModel.calendarStatusText)
+                                    .font(AppTheme.captionFont)
+                                    .foregroundStyle(viewModel.isCalendarAuthorized ? AppTheme.urgencyGreen : AppTheme.textSecondary)
+                            }
+                        }
+                    }
+                    .listRowBackground(AppTheme.adaptiveCard)
 
                     NavigationLink {
                         GranolaSettingsView()
                     } label: {
                         HStack {
                             Image(systemName: "note.text")
-                                .foregroundStyle(.purple)
+                                .foregroundStyle(AppTheme.badgeGranola)
                                 .frame(width: 28)
 
                             VStack(alignment: .leading) {
                                 Text("Granola")
-                                    .font(.subheadline)
+                                    .font(AppTheme.subheadlineFont)
                                 Text(viewModel.isGranolaConfigured ? "Configured" : "Not configured")
-                                    .font(.caption)
-                                    .foregroundStyle(viewModel.isGranolaConfigured ? .green : .secondary)
+                                    .font(AppTheme.captionFont)
+                                    .foregroundStyle(viewModel.isGranolaConfigured ? AppTheme.urgencyGreen : AppTheme.textSecondary)
                             }
                         }
                     }
+                    .listRowBackground(AppTheme.adaptiveCard)
 
                     NavigationLink {
                         MeetingNotesSettingsView()
@@ -55,31 +76,33 @@ struct SettingsView: View {
 
                             VStack(alignment: .leading) {
                                 Text("Meeting Notes")
-                                    .font(.subheadline)
+                                    .font(AppTheme.subheadlineFont)
                                 Text(viewModel.isMeetingNotesConfigured ? "Configured" : "Not configured")
-                                    .font(.caption)
-                                    .foregroundStyle(viewModel.isMeetingNotesConfigured ? .green : .secondary)
+                                    .font(AppTheme.captionFont)
+                                    .foregroundStyle(viewModel.isMeetingNotesConfigured ? AppTheme.urgencyGreen : AppTheme.textSecondary)
                             }
                         }
                     }
+                    .listRowBackground(AppTheme.adaptiveCard)
 
                     NavigationLink {
                         ClaudeSettingsView()
                     } label: {
                         HStack {
                             Image(systemName: "sparkles")
-                                .foregroundStyle(Color.accentColor)
+                                .foregroundStyle(AppTheme.accent)
                                 .frame(width: 28)
 
                             VStack(alignment: .leading) {
                                 Text("Claude AI")
-                                    .font(.subheadline)
+                                    .font(AppTheme.subheadlineFont)
                                 Text(viewModel.isClaudeConfigured ? "Configured" : "Not configured")
-                                    .font(.caption)
-                                    .foregroundStyle(viewModel.isClaudeConfigured ? .green : .secondary)
+                                    .font(AppTheme.captionFont)
+                                    .foregroundStyle(viewModel.isClaudeConfigured ? AppTheme.urgencyGreen : AppTheme.textSecondary)
                             }
                         }
                     }
+                    .listRowBackground(AppTheme.adaptiveCard)
                 }
 
                 // Notifications Section
@@ -91,10 +114,13 @@ struct SettingsView: View {
                         Text("Version")
                         Spacer()
                         Text("1.0.0")
-                            .foregroundStyle(.secondary)
+                            .foregroundStyle(AppTheme.textSecondary)
                     }
+                    .listRowBackground(AppTheme.adaptiveCard)
                 }
             }
+            .insetGroupedListStyle()
+            .warmListBackground()
             .navigationTitle("Settings")
             .onAppear { viewModel.refreshMeetingNotesStatus() }
         }
@@ -109,31 +135,39 @@ struct NotificationSettingsSection: View {
 
         Section("Notifications") {
             Toggle("Morning Briefing", isOn: $notifs.isMorningBriefingEnabled)
+                .tint(AppTheme.accent)
+                .listRowBackground(AppTheme.adaptiveCard)
 
             if notifications.isMorningBriefingEnabled {
                 HStack {
                     Text("Time")
                     Spacer()
                     Text(formatTime(notifications.morningBriefingTime))
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(AppTheme.textSecondary)
                 }
+                .listRowBackground(AppTheme.adaptiveCard)
             }
 
             Toggle("Evening Recap", isOn: $notifs.isEveningRecapEnabled)
+                .tint(AppTheme.accent)
+                .listRowBackground(AppTheme.adaptiveCard)
 
             if notifications.isEveningRecapEnabled {
                 HStack {
                     Text("Time")
                     Spacer()
                     Text(formatTime(notifications.eveningRecapTime))
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(AppTheme.textSecondary)
                 }
+                .listRowBackground(AppTheme.adaptiveCard)
             }
 
             if !notifications.isPermissionGranted {
                 Button("Enable Notifications") {
                     Task { await notifications.requestPermission() }
                 }
+                .tint(AppTheme.accent)
+                .listRowBackground(AppTheme.adaptiveCard)
             }
         }
     }

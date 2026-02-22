@@ -2,11 +2,12 @@ import SwiftUI
 
 struct BriefingView: View {
     @State private var viewModel = BriefingViewModel()
+    @State private var showSettings = false
 
     var body: some View {
         NavigationStack {
             ScrollView {
-                VStack(spacing: 20) {
+                VStack(spacing: AppTheme.sectionSpacing) {
                     if viewModel.isLoading && viewModel.briefing == nil {
                         briefingLoadingView
                     } else if let error = viewModel.error, viewModel.briefing == nil {
@@ -19,7 +20,29 @@ struct BriefingView: View {
                 }
                 .padding()
             }
-            .navigationTitle(viewModel.currentBriefingType.title)
+            .warmScrollBackground()
+            .inlineNavigationBarTitle()
+            .toolbar {
+                ToolbarItem(placement: .principal) {
+                    Text(DateFormatting.fullDate(Date()))
+                        .font(AppTheme.subheadlineFont)
+                        .fontWeight(.medium)
+                        .foregroundStyle(AppTheme.textSecondary)
+                }
+                ToolbarItem(placement: .automatic) {
+                    Button {
+                        showSettings = true
+                    } label: {
+                        Image(systemName: "gear")
+                            .foregroundStyle(AppTheme.textSecondary)
+                    }
+                }
+            }
+            .sheet(isPresented: $showSettings) {
+                NavigationStack {
+                    SettingsView()
+                }
+            }
             .refreshable {
                 await viewModel.refresh()
             }
@@ -35,38 +58,36 @@ struct BriefingView: View {
 
     @ViewBuilder
     private func briefingContent(_ briefing: Briefing) -> some View {
-        // Header
-        VStack(spacing: 4) {
-            Text(DateFormatting.fullDate(briefing.generatedAt))
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
+        // Greeting
+        Text(viewModel.greeting)
+            .font(AppTheme.largeTitleFont)
+            .foregroundStyle(AppTheme.textPrimary)
+            .frame(maxWidth: .infinity, alignment: .leading)
 
-            Text(briefing.type.subtitle)
-                .font(.headline)
-                .foregroundStyle(.secondary)
-        }
-        .frame(maxWidth: .infinity)
-        .padding(.bottom, 8)
-
-        // AI Summary Card
-        if let summary = briefing.aiSummary {
+        // AI Summary Cards — one per category
+        if !briefing.aiSummaryCards.isEmpty {
+            ForEach(briefing.aiSummaryCards) { card in
+                BriefingSummaryCardView(card: card)
+            }
+        } else if let summary = briefing.aiSummary {
+            // Fallback: single card if parsing yielded nothing
             VStack(alignment: .leading, spacing: 8) {
                 Label("AI Summary", systemImage: "sparkles")
-                    .font(.subheadline)
+                    .font(AppTheme.captionFont)
                     .fontWeight(.semibold)
-                    .foregroundStyle(Color.accentColor)
+                    .foregroundStyle(AppTheme.accent)
 
                 MarkdownTextView(text: summary)
-                    .font(.subheadline)
+                    .font(AppTheme.subheadlineFont)
             }
-            .padding()
+            .padding(AppTheme.cardPadding)
             .background(
-                RoundedRectangle(cornerRadius: 16)
-                    .fill(Color.accentColor.opacity(0.08))
+                RoundedRectangle(cornerRadius: AppTheme.cornerRadiusCard)
+                    .fill(AppTheme.accent.opacity(0.08))
             )
             .overlay(
-                RoundedRectangle(cornerRadius: 16)
-                    .stroke(Color.accentColor.opacity(0.2), lineWidth: 1)
+                RoundedRectangle(cornerRadius: AppTheme.cornerRadiusCard)
+                    .stroke(AppTheme.accent.opacity(0.2), lineWidth: 1)
             )
         }
 
@@ -89,11 +110,42 @@ struct BriefingView: View {
                     ShimmerView()
                         .frame(height: 40)
                 }
-                .padding()
-                .background(Color.systemGray6Color)
-                .clipShape(RoundedRectangle(cornerRadius: 12))
+                .padding(AppTheme.cardPadding)
+                .background(AppTheme.adaptiveCard)
+                .clipShape(RoundedRectangle(cornerRadius: AppTheme.cornerRadiusCard))
             }
         }
+    }
+}
+
+// MARK: - AI Summary Card View
+
+struct BriefingSummaryCardView: View {
+    let card: BriefingSummaryCard
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            // Subtle category label
+            Label(card.category.rawValue, systemImage: card.category.icon)
+                .font(AppTheme.captionFont)
+                .fontWeight(.semibold)
+                .foregroundStyle(card.category.accentColor)
+
+            // Card content
+            MarkdownTextView(text: card.content)
+                .font(AppTheme.subheadlineFont)
+        }
+        .padding(AppTheme.cardPadding)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(
+            RoundedRectangle(cornerRadius: AppTheme.cornerRadiusCard)
+                .fill(AppTheme.adaptiveCard)
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: AppTheme.cornerRadiusCard)
+                .stroke(card.category.accentColor.opacity(0.2), lineWidth: 1)
+        )
+        .shadow(color: .black.opacity(0.03), radius: 6, x: 0, y: 2)
     }
 }
 
@@ -103,19 +155,18 @@ struct BriefingSectionView: View {
     let section: BriefingSection
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            // Section header
-            Label(section.title, systemImage: section.icon)
-                .font(.headline)
+        WarmCard {
+            VStack(alignment: .leading, spacing: 12) {
+                // Section header
+                Label(section.title, systemImage: section.icon)
+                    .font(AppTheme.sectionHeaderFont)
 
-            // Items
-            ForEach(section.items) { item in
-                BriefingItemRow(item: item)
+                // Items
+                ForEach(section.items) { item in
+                    BriefingItemRow(item: item)
+                }
             }
         }
-        .padding()
-        .background(Color.systemGray6Color)
-        .clipShape(RoundedRectangle(cornerRadius: 12))
     }
 }
 
@@ -134,13 +185,13 @@ struct BriefingItemRow: View {
 
             VStack(alignment: .leading, spacing: 2) {
                 Text(item.title)
-                    .font(.subheadline)
+                    .font(AppTheme.subheadlineFont)
                     .fontWeight(item.urgency == .critical ? .semibold : .regular)
 
                 if let subtitle = item.subtitle {
                     Text(subtitle)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+                        .font(AppTheme.captionFont)
+                        .foregroundStyle(AppTheme.textSecondary)
                 }
             }
 
@@ -154,20 +205,20 @@ struct BriefingItemRow: View {
 
     private var urgencyColor: Color {
         switch item.urgency {
-        case .normal: return .green
-        case .warning: return .orange
-        case .critical: return .red
+        case .normal: return AppTheme.urgencyGreen
+        case .warning: return AppTheme.urgencyOrange
+        case .critical: return AppTheme.urgencyRed
         }
     }
 
     private func badgeSwiftUIColor(_ color: BriefingItem.BadgeInfo.BadgeColor) -> Color {
         switch color {
         case .blue: return .blue
-        case .green: return .green
-        case .orange: return .orange
-        case .red: return .red
-        case .purple: return .purple
-        case .gray: return .gray
+        case .green: return AppTheme.urgencyGreen
+        case .orange: return AppTheme.urgencyOrange
+        case .red: return AppTheme.urgencyRed
+        case .purple: return AppTheme.badgeGranola
+        case .gray: return AppTheme.textSecondary
         }
     }
 }

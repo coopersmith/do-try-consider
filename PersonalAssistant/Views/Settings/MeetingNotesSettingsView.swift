@@ -17,47 +17,52 @@ struct MeetingNotesSettingsView: View {
                         .foregroundStyle(.indigo)
 
                     Text("Local Meeting Notes")
-                        .font(.headline)
+                        .font(AppTheme.headlineFont)
 
                     Text("Select your Obsidian meeting notes folder to access meeting notes, summaries, and attendee info directly from your device.")
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
+                        .font(AppTheme.subheadlineFont)
+                        .foregroundStyle(AppTheme.textSecondary)
                         .multilineTextAlignment(.center)
                 }
                 .padding(.vertical)
                 .frame(maxWidth: .infinity)
+                .listRowBackground(AppTheme.adaptiveCard)
             }
 
             Section {
                 if viewModel.isMeetingNotesConfigured {
                     HStack {
                         Image(systemName: "checkmark.circle.fill")
-                            .foregroundStyle(.green)
+                            .foregroundStyle(AppTheme.urgencyGreen)
                         Text("Folder Connected")
                         Spacer()
                     }
+                    .listRowBackground(AppTheme.adaptiveCard)
 
                     if let name = viewModel.meetingNotesFolderName {
                         HStack {
                             Text("Folder")
                             Spacer()
                             Text(name)
-                                .foregroundStyle(.secondary)
+                                .foregroundStyle(AppTheme.textSecondary)
                         }
+                        .listRowBackground(AppTheme.adaptiveCard)
                     }
 
                     HStack {
                         Text("Files")
                         Spacer()
                         Text("\(viewModel.meetingNotesFileCount) notes")
-                            .foregroundStyle(.secondary)
+                            .foregroundStyle(AppTheme.textSecondary)
                     }
+                    .listRowBackground(AppTheme.adaptiveCard)
 
                     Button(role: .destructive) {
                         viewModel.clearMeetingNotesFolder()
                     } label: {
                         Label("Disconnect Folder", systemImage: "trash")
                     }
+                    .listRowBackground(AppTheme.adaptiveCard)
                 } else {
                     Button {
                         showingFolderPicker = true
@@ -67,6 +72,7 @@ struct MeetingNotesSettingsView: View {
                     }
                     .buttonStyle(.borderedProminent)
                     .tint(.indigo)
+                    .listRowBackground(AppTheme.adaptiveCard)
                 }
             } header: {
                 Text("Meeting Notes Folder")
@@ -77,8 +83,8 @@ struct MeetingNotesSettingsView: View {
             if let error = viewModel.meetingNotesError {
                 Section {
                     Label(error, systemImage: "exclamationmark.triangle")
-                        .foregroundStyle(.red)
-                        .font(.caption)
+                        .foregroundStyle(AppTheme.urgencyRed)
+                        .font(AppTheme.captionFont)
                 }
             }
 
@@ -88,11 +94,14 @@ struct MeetingNotesSettingsView: View {
                     let docs = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first!
                     viewModel.selectMeetingNotesFolder(url: docs.appending(path: "ObsidianTestNotes"))
                 }
-                .font(.caption)
+                .font(AppTheme.captionFont)
                 .foregroundStyle(.orange)
+                .listRowBackground(AppTheme.adaptiveCard)
             }
             #endif
         }
+        .insetGroupedListStyle()
+        .warmListBackground()
         .navigationTitle("Meeting Notes")
         .inlineNavigationBarTitle()
         .onAppear { viewModel.refreshMeetingNotesStatus() }
@@ -142,7 +151,7 @@ struct FolderPickerView: View {
     var body: some View {
         VStack(spacing: 16) {
             Text("Select a folder using Finder")
-                .font(.headline)
+                .font(AppTheme.headlineFont)
             Button("Open Folder...") {
                 let panel = NSOpenPanel()
                 panel.canChooseFiles = false

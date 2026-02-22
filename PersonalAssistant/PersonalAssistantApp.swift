@@ -10,6 +10,7 @@ struct PersonalAssistantApp: App {
             ContentView()
                 .environment(settingsViewModel)
                 .environment(notificationService)
+                .tint(AppTheme.accent)
                 .task {
                     await notificationService.requestPermission()
                 }

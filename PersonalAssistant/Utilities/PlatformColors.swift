@@ -16,4 +16,8 @@ extension Color {
         Color(nsColor: .windowBackgroundColor)
         #endif
     }
+
+    static var warmBackground: Color { AppTheme.adaptiveBackground }
+    static var warmCard: Color { AppTheme.adaptiveCard }
+    static var warmAccent: Color { AppTheme.accent }
 }

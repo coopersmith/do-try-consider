@@ -29,6 +29,7 @@ struct TaskDetailView: View {
                 taskContent(task)
             }
         }
+        .background(AppTheme.adaptiveBackground)
         .navigationTitle("Task Details")
         .inlineNavigationBarTitle()
         .task {
@@ -48,12 +49,11 @@ struct TaskDetailView: View {
                 VStack(alignment: .leading, spacing: 8) {
                     HStack {
                         Image(systemName: task.completed == true ? "checkmark.circle.fill" : "circle")
-                            .foregroundStyle(task.completed == true ? .green : .secondary)
+                            .foregroundStyle(task.completed == true ? AppTheme.urgencyGreen : AppTheme.textSecondary)
                             .font(.title2)
 
                         Text(task.name)
-                            .font(.title3)
-                            .fontWeight(.semibold)
+                            .font(AppTheme.title3Font)
                     }
 
                     if let workspace = task.workspace {
@@ -64,87 +64,87 @@ struct TaskDetailView: View {
                 Divider()
 
                 // Metadata
-                VStack(alignment: .leading, spacing: 12) {
-                    // Due date — tappable
-                    if let dueDate = task.dueDate {
-                        Button {
-                            selectedDate = dueDate
-                            showDatePicker = true
-                        } label: {
-                            HStack {
-                                Label("Due Date", systemImage: "calendar")
-                                    .font(.subheadline)
-                                    .foregroundStyle(.secondary)
-                                    .frame(width: 120, alignment: .leading)
+                WarmCard {
+                    VStack(alignment: .leading, spacing: 12) {
+                        // Due date — tappable
+                        if let dueDate = task.dueDate {
+                            Button {
+                                selectedDate = dueDate
+                                showDatePicker = true
+                            } label: {
+                                HStack {
+                                    Label("Due Date", systemImage: "calendar")
+                                        .font(AppTheme.subheadlineFont)
+                                        .foregroundStyle(AppTheme.textSecondary)
+                                        .frame(width: 120, alignment: .leading)
 
-                                Text(DateFormatting.fullDate(dueDate))
-                                    .font(.subheadline)
-                                    .foregroundStyle(task.isOverdue ? .red : .primary)
+                                    Text(DateFormatting.fullDate(dueDate))
+                                        .font(AppTheme.subheadlineFont)
+                                        .foregroundStyle(task.isOverdue ? AppTheme.urgencyRed : .primary)
 
-                                Spacer()
+                                    Spacer()
 
-                                Image(systemName: "pencil")
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
+                                    Image(systemName: "pencil")
+                                        .font(AppTheme.captionFont)
+                                        .foregroundStyle(AppTheme.textSecondary)
+                                }
+                            }
+                            .buttonStyle(.plain)
+                        } else {
+                            Button {
+                                selectedDate = Date()
+                                showDatePicker = true
+                            } label: {
+                                HStack {
+                                    Image(systemName: "calendar.badge.plus")
+                                    Text("Add Due Date")
+                                }
+                                .font(AppTheme.subheadlineFont)
+                                .foregroundStyle(AppTheme.accent)
                             }
                         }
-                        .buttonStyle(.plain)
-                    } else {
-                        Button {
-                            selectedDate = Date()
-                            showDatePicker = true
-                        } label: {
-                            HStack {
-                                Image(systemName: "calendar.badge.plus")
-                                Text("Add Due Date")
-                            }
-                            .font(.subheadline)
-                            .foregroundStyle(Color.accentColor)
+
+                        // Assignee
+                        if let assignee = task.assignee {
+                            MetadataRow(
+                                icon: "person",
+                                label: "Assignee",
+                                value: assignee.name
+                            )
                         }
-                    }
 
-                    // Assignee
-                    if let assignee = task.assignee {
-                        MetadataRow(
-                            icon: "person",
-                            label: "Assignee",
-                            value: assignee.name
-                        )
-                    }
+                        if let project = task.projects?.first, let projectName = project.name {
+                            MetadataRow(
+                                icon: "folder",
+                                label: "Project",
+                                value: projectName
+                            )
+                        }
 
-                    if let project = task.projects?.first, let projectName = project.name {
-                        MetadataRow(
-                            icon: "folder",
-                            label: "Project",
-                            value: projectName
-                        )
-                    }
-
-                    if let createdAt = task.createdAt,
-                       let date = DateFormatting.dateFromISO(createdAt) {
-                        MetadataRow(
-                            icon: "clock",
-                            label: "Created",
-                            value: DateFormatting.relative(date)
-                        )
+                        if let createdAt = task.createdAt,
+                           let date = DateFormatting.dateFromISO(createdAt) {
+                            MetadataRow(
+                                icon: "clock",
+                                label: "Created",
+                                value: DateFormatting.relative(date)
+                            )
+                        }
                     }
                 }
 
                 // Notes
                 if let notes = task.notes, !notes.isEmpty {
-                    Divider()
+                    WarmCard {
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text("Notes")
+                                .font(AppTheme.sectionHeaderFont)
 
-                    VStack(alignment: .leading, spacing: 8) {
-                        Text("Notes")
-                            .font(.headline)
-
-                        Text(notes)
-                            .font(.body)
-                            .foregroundStyle(.secondary)
+                            Text(notes)
+                                .font(AppTheme.bodyFont)
+                                .foregroundStyle(AppTheme.textSecondary)
+                        }
                     }
                 }
-
-                Divider()
 
                 // Comments section
                 commentsSection
@@ -168,11 +168,13 @@ struct TaskDetailView: View {
                         .frame(maxWidth: .infinity)
                     }
                     .buttonStyle(.borderedProminent)
+                    .tint(AppTheme.accent)
                     .disabled(isCompleting)
                 }
             }
             .padding()
         }
+        .warmScrollBackground()
     }
 
     // MARK: - Comments Section
@@ -181,20 +183,20 @@ struct TaskDetailView: View {
     private var commentsSection: some View {
         VStack(alignment: .leading, spacing: 12) {
             Text("Comments")
-                .font(.headline)
+                .font(AppTheme.sectionHeaderFont)
 
             if isLoadingComments {
                 HStack {
                     ProgressView()
                         .scaleEffect(0.8)
                     Text("Loading comments...")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+                        .font(AppTheme.captionFont)
+                        .foregroundStyle(AppTheme.textSecondary)
                 }
             } else if comments.isEmpty {
                 Text("No comments yet")
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
+                    .font(AppTheme.subheadlineFont)
+                    .foregroundStyle(AppTheme.textSecondary)
             } else {
                 ForEach(comments) { comment in
                     CommentRow(story: comment)
@@ -215,7 +217,7 @@ struct TaskDetailView: View {
                             .scaleEffect(0.8)
                     } else {
                         Image(systemName: "paperplane.fill")
-                            .foregroundStyle(commentText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? .gray : Color.accentColor)
+                            .foregroundStyle(commentText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? Color.gray : AppTheme.accent)
                     }
                 }
                 .disabled(commentText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || isPostingComment)
@@ -332,25 +334,25 @@ struct CommentRow: View {
         VStack(alignment: .leading, spacing: 4) {
             HStack {
                 Text(story.createdBy?.name ?? "Unknown")
-                    .font(.subheadline)
+                    .font(AppTheme.subheadlineFont)
                     .fontWeight(.medium)
 
                 Spacer()
 
                 if let date = story.createdDate {
                     Text(DateFormatting.relative(date))
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+                        .font(AppTheme.captionFont)
+                        .foregroundStyle(AppTheme.textSecondary)
                 }
             }
 
             Text(story.text ?? "")
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
+                .font(AppTheme.subheadlineFont)
+                .foregroundStyle(AppTheme.textSecondary)
         }
         .padding(10)
-        .background(Color.systemGray6Color)
-        .clipShape(RoundedRectangle(cornerRadius: 8))
+        .background(AppTheme.adaptiveSecondary)
+        .clipShape(RoundedRectangle(cornerRadius: AppTheme.cornerRadiusSmall))
     }
 }
 
@@ -365,12 +367,12 @@ struct MetadataRow: View {
     var body: some View {
         HStack {
             Label(label, systemImage: icon)
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
+                .font(AppTheme.subheadlineFont)
+                .foregroundStyle(AppTheme.textSecondary)
                 .frame(width: 120, alignment: .leading)
 
             Text(value)
-                .font(.subheadline)
+                .font(AppTheme.subheadlineFont)
                 .foregroundStyle(valueColor ?? .primary)
         }
     }

@@ -7,16 +7,16 @@ struct TaskRowView: View {
         HStack(spacing: 12) {
             // Completion indicator
             Image(systemName: task.completed == true ? "checkmark.circle.fill" : "circle")
-                .foregroundStyle(task.completed == true ? .green : .secondary)
+                .foregroundStyle(task.completed == true ? AppTheme.urgencyGreen : AppTheme.textSecondary)
                 .font(.title3)
 
             VStack(alignment: .leading, spacing: 4) {
                 // Task name
                 Text(task.name)
-                    .font(.subheadline)
+                    .font(AppTheme.subheadlineFont)
                     .fontWeight(.medium)
                     .strikethrough(task.completed == true)
-                    .foregroundStyle(task.completed == true ? .secondary : .primary)
+                    .foregroundStyle(task.completed == true ? AppTheme.textSecondary : .primary)
                     .lineLimit(2)
 
                 // Project badge
@@ -30,7 +30,7 @@ struct TaskRowView: View {
             // Due date
             if let dueDate = task.dueDate {
                 Text(dueDateText(dueDate))
-                    .font(.caption)
+                    .font(AppTheme.captionFont)
                     .foregroundStyle(dueDateColor(dueDate))
             }
         }
@@ -56,14 +56,14 @@ struct TaskRowView: View {
     }
 
     private func dueDateColor(_ date: Date) -> Color {
-        if task.completed == true { return .secondary }
-        if date < Calendar.current.startOfDay(for: Date()) { return .red }
-        if Calendar.current.isDateInToday(date) { return .orange }
-        return .secondary
+        if task.completed == true { return AppTheme.textSecondary }
+        if date < Calendar.current.startOfDay(for: Date()) { return AppTheme.urgencyRed }
+        if Calendar.current.isDateInToday(date) { return AppTheme.urgencyOrange }
+        return AppTheme.textSecondary
     }
 
     private func projectColor(_ name: String) -> Color {
-        let colors: [Color] = [.blue, .purple, .indigo, .teal, .cyan, .mint]
+        let colors: [Color] = [.blue, AppTheme.badgeGranola, .indigo, AppTheme.badgeLocal, .cyan, .mint]
         let index = abs(name.hashValue) % colors.count
         return colors[index]
     }
