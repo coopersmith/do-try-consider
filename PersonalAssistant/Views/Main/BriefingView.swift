@@ -51,6 +51,9 @@ struct BriefingView: View {
                     await viewModel.loadBriefing()
                 }
             }
+            .navigationDestination(for: String.self) { taskGID in
+                TaskDetailView(taskID: taskGID)
+            }
         }
     }
 
@@ -78,7 +81,7 @@ struct BriefingView: View {
                     .foregroundStyle(AppTheme.accent)
 
                 MarkdownTextView(text: summary)
-                    .font(AppTheme.subheadlineFont)
+                    .font(AppTheme.bodyFont)
             }
             .padding(AppTheme.cardPadding)
             .background(
@@ -124,28 +127,28 @@ struct BriefingSummaryCardView: View {
     let card: BriefingSummaryCard
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            // Subtle category label
+        VStack(alignment: .leading, spacing: 6) {
+            // Category label above the card
             Label(card.category.rawValue, systemImage: card.category.icon)
                 .font(AppTheme.captionFont)
                 .fontWeight(.semibold)
                 .foregroundStyle(card.category.accentColor)
 
-            // Card content
+            // Card body
             MarkdownTextView(text: card.content)
-                .font(AppTheme.subheadlineFont)
+                .font(AppTheme.bodyFont)
+                .padding(AppTheme.cardPadding)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(
+                    RoundedRectangle(cornerRadius: AppTheme.cornerRadiusCard)
+                        .fill(AppTheme.adaptiveCard)
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: AppTheme.cornerRadiusCard)
+                        .stroke(card.category.accentColor.opacity(0.2), lineWidth: 1)
+                )
+                .shadow(color: .black.opacity(0.03), radius: 6, x: 0, y: 2)
         }
-        .padding(AppTheme.cardPadding)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(
-            RoundedRectangle(cornerRadius: AppTheme.cornerRadiusCard)
-                .fill(AppTheme.adaptiveCard)
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: AppTheme.cornerRadiusCard)
-                .stroke(card.category.accentColor.opacity(0.2), lineWidth: 1)
-        )
-        .shadow(color: .black.opacity(0.03), radius: 6, x: 0, y: 2)
     }
 }
 
@@ -155,38 +158,45 @@ struct BriefingSectionView: View {
     let section: BriefingSection
 
     var body: some View {
-        WarmCard {
-            VStack(alignment: .leading, spacing: 12) {
-                // Section header
-                Label(section.title, systemImage: section.icon)
-                    .font(AppTheme.sectionHeaderFont)
+        VStack(alignment: .leading, spacing: 10) {
+            // Section header — standalone above cards
+            Label(section.title, systemImage: section.icon)
+                .font(AppTheme.sectionHeaderFont)
 
-                // Items
-                ForEach(section.items) { item in
-                    BriefingItemRow(item: item)
+            // Each item as its own card
+            ForEach(section.items) { item in
+                if let taskGID = item.taskGID {
+                    NavigationLink(value: taskGID) {
+                        BriefingTaskCardView(item: item)
+                    }
+                    .buttonStyle(.plain)
+                } else {
+                    BriefingItemCardView(item: item)
                 }
             }
         }
     }
 }
 
-// MARK: - Item Row
+// MARK: - Task Card View (tappable, with emoji)
 
-struct BriefingItemRow: View {
+struct BriefingTaskCardView: View {
     let item: BriefingItem
 
     var body: some View {
-        HStack(alignment: .top, spacing: 10) {
-            // Urgency indicator
-            Circle()
-                .fill(urgencyColor)
-                .frame(width: 8, height: 8)
-                .padding(.top, 6)
+        HStack(spacing: 12) {
+            // Emoji
+            if let emoji = item.emoji {
+                Text(emoji)
+                    .font(.title2)
+            }
 
+            // Title + subtitle
             VStack(alignment: .leading, spacing: 2) {
                 Text(item.title)
-                    .font(AppTheme.subheadlineFont)
-                    .fontWeight(item.urgency == .critical ? .semibold : .regular)
+                    .font(AppTheme.bodyFont)
+                    .fontWeight(item.urgency == .critical ? .semibold : .medium)
+                    .foregroundStyle(AppTheme.textPrimary)
 
                 if let subtitle = item.subtitle {
                     Text(subtitle)
@@ -197,10 +207,84 @@ struct BriefingItemRow: View {
 
             Spacer()
 
+            // Workspace badge
+            if let badge = item.badge {
+                WorkspaceBadge(text: badge.text, color: badgeSwiftUIColor(badge.color))
+            }
+
+            // Chevron
+            Image(systemName: "chevron.right")
+                .font(.caption)
+                .foregroundStyle(AppTheme.textSecondary)
+        }
+        .padding(AppTheme.cardPadding)
+        .background(AppTheme.adaptiveCard)
+        .clipShape(RoundedRectangle(cornerRadius: AppTheme.cornerRadiusCard))
+        .overlay(
+            RoundedRectangle(cornerRadius: AppTheme.cornerRadiusCard)
+                .stroke(urgencyBorderColor, lineWidth: item.urgency == .normal ? 0 : 1)
+        )
+        .shadow(color: .black.opacity(0.04), radius: 8, x: 0, y: 2)
+    }
+
+    private var urgencyBorderColor: Color {
+        switch item.urgency {
+        case .normal: return .clear
+        case .warning: return AppTheme.urgencyOrange.opacity(0.4)
+        case .critical: return AppTheme.urgencyRed.opacity(0.4)
+        }
+    }
+
+    private func badgeSwiftUIColor(_ color: BriefingItem.BadgeInfo.BadgeColor) -> Color {
+        switch color {
+        case .blue: return .blue
+        case .green: return AppTheme.urgencyGreen
+        case .orange: return AppTheme.urgencyOrange
+        case .red: return AppTheme.urgencyRed
+        case .purple: return AppTheme.badgeGranola
+        case .gray: return AppTheme.textSecondary
+        }
+    }
+}
+
+// MARK: - Item Card View (non-tappable, for calendar events / empty states)
+
+struct BriefingItemCardView: View {
+    let item: BriefingItem
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 10) {
+            // Urgency dot
+            Circle()
+                .fill(urgencyColor)
+                .frame(width: 8, height: 8)
+                .padding(.top, 6)
+
+            // Title + subtitle
+            VStack(alignment: .leading, spacing: 2) {
+                Text(item.title)
+                    .font(AppTheme.bodyFont)
+                    .fontWeight(item.urgency == .critical ? .semibold : .regular)
+                    .foregroundStyle(AppTheme.textPrimary)
+
+                if let subtitle = item.subtitle {
+                    Text(subtitle)
+                        .font(AppTheme.captionFont)
+                        .foregroundStyle(AppTheme.textSecondary)
+                }
+            }
+
+            Spacer()
+
+            // Badge
             if let badge = item.badge {
                 WorkspaceBadge(text: badge.text, color: badgeSwiftUIColor(badge.color))
             }
         }
+        .padding(AppTheme.cardPadding)
+        .background(AppTheme.adaptiveCard)
+        .clipShape(RoundedRectangle(cornerRadius: AppTheme.cornerRadiusCard))
+        .shadow(color: .black.opacity(0.04), radius: 8, x: 0, y: 2)
     }
 
     private var urgencyColor: Color {

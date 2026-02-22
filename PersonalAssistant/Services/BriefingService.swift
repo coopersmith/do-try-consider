@@ -101,6 +101,40 @@ final class BriefingService {
         )
     }
 
+    // MARK: - Emoji Assignment
+
+    private func emojiForTask(_ task: AsanaTask, section: String) -> String {
+        let name = task.name.lowercased()
+
+        // Completed tasks get celebration emojis
+        if section == "completed" {
+            let celebrations = ["✅", "🎉", "💪", "⭐", "🏆", "👏", "🙌"]
+            let index = abs(task.gid.hashValue) % celebrations.count
+            return celebrations[index]
+        }
+
+        // Keyword-based matching
+        if name.contains("bug") || name.contains("fix") { return "🐛" }
+        if name.contains("design") || name.contains("ui") || name.contains("mockup") { return "🎨" }
+        if name.contains("test") || name.contains("qa") { return "🧪" }
+        if name.contains("doc") || name.contains("write") || name.contains("blog") { return "📝" }
+        if name.contains("deploy") || name.contains("release") || name.contains("ship") { return "🚀" }
+        if name.contains("review") || name.contains("feedback") { return "🔍" }
+        if name.contains("meeting") || name.contains("sync") || name.contains("standup") { return "🤝" }
+        if name.contains("email") || name.contains("message") || name.contains("send") { return "📧" }
+        if name.contains("research") || name.contains("explore") { return "🔬" }
+        if name.contains("plan") || name.contains("roadmap") || name.contains("strategy") { return "🗺️" }
+        if name.contains("data") || name.contains("analytics") || name.contains("metric") { return "📊" }
+        if name.contains("security") || name.contains("auth") { return "🔒" }
+        if name.contains("api") || name.contains("integration") { return "🔌" }
+        if name.contains("clean") || name.contains("refactor") { return "🧹" }
+
+        // Hash-based deterministic fallback
+        let fallbacks = ["📋", "📌", "💡", "🎯", "⚡", "🔧", "📦", "🏷️"]
+        let index = abs(task.gid.hashValue) % fallbacks.count
+        return fallbacks[index]
+    }
+
     // MARK: - Section Building
 
     private func buildSections(from data: BriefingData, type: Briefing.BriefingType) -> [BriefingSection] {
@@ -120,7 +154,9 @@ final class BriefingService {
                             badge: task.workspace.map {
                                 BriefingItem.BadgeInfo(text: $0.displayName, color: .red)
                             },
-                            urgency: .critical
+                            urgency: .critical,
+                            taskGID: task.gid,
+                            emoji: emojiForTask(task, section: "overdue")
                         )
                     }
                 ))
@@ -138,7 +174,9 @@ final class BriefingService {
                             badge: task.workspace.map {
                                 BriefingItem.BadgeInfo(text: $0.displayName, color: .blue)
                             },
-                            urgency: .warning
+                            urgency: .warning,
+                            taskGID: task.gid,
+                            emoji: emojiForTask(task, section: "dueToday")
                         )
                     }
                 ))
@@ -168,7 +206,9 @@ final class BriefingService {
                     items: data.upcomingTasks.prefix(5).map { task in
                         BriefingItem(
                             title: task.name,
-                            subtitle: task.dueDate.map { DateFormatting.shortDate($0) }
+                            subtitle: task.dueDate.map { DateFormatting.shortDate($0) },
+                            taskGID: task.gid,
+                            emoji: emojiForTask(task, section: "upcoming")
                         )
                     }
                 ))
@@ -185,7 +225,9 @@ final class BriefingService {
                             title: task.name,
                             badge: task.workspace.map {
                                 BriefingItem.BadgeInfo(text: $0.displayName, color: .green)
-                            }
+                            },
+                            taskGID: task.gid,
+                            emoji: emojiForTask(task, section: "completed")
                         )
                     }
                 ))
@@ -201,7 +243,9 @@ final class BriefingService {
                         BriefingItem(
                             title: task.name,
                             subtitle: "Was due today",
-                            urgency: .warning
+                            urgency: .warning,
+                            taskGID: task.gid,
+                            emoji: emojiForTask(task, section: "stillOpen")
                         )
                     }
                 ))

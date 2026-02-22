@@ -67,6 +67,8 @@ struct BriefingItem: Identifiable {
     let subtitle: String?
     let badge: BadgeInfo?
     let urgency: Urgency
+    let taskGID: String?
+    let emoji: String?
 
     enum Urgency {
         case normal
@@ -88,13 +90,17 @@ struct BriefingItem: Identifiable {
         title: String,
         subtitle: String? = nil,
         badge: BadgeInfo? = nil,
-        urgency: Urgency = .normal
+        urgency: Urgency = .normal,
+        taskGID: String? = nil,
+        emoji: String? = nil
     ) {
         self.id = id
         self.title = title
         self.subtitle = subtitle
         self.badge = badge
         self.urgency = urgency
+        self.taskGID = taskGID
+        self.emoji = emoji
     }
 }
 
