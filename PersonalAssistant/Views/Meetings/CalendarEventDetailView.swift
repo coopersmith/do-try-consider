@@ -72,12 +72,13 @@ struct CalendarEventDetailView: View {
                 }
 
                 // Calendar Event Notes
-                if let notes = meeting.notes, !notes.isEmpty {
+                if let notes = meeting.notes, !notes.isEmpty,
+                   let cleaned = Self.stripVideoConferenceCruft(notes), !cleaned.isEmpty {
                     WarmCard {
                         VStack(alignment: .leading, spacing: 8) {
                             Text("Event Notes")
                                 .font(AppTheme.sectionHeaderFont)
-                            Text(notes)
+                            MarkdownTextView(text: cleaned)
                                 .font(AppTheme.bodyFont)
                                 .foregroundStyle(AppTheme.textSecondary)
                         }
@@ -263,6 +264,99 @@ struct CalendarEventDetailView: View {
             .controlSize(.regular)
             .frame(maxWidth: .infinity)
         }
+    }
+
+    // MARK: - Data Loading
+
+    // MARK: - Zoom / Video Conference Cruft Stripping
+
+    /// Strips boilerplate from video conferencing services (Zoom, Teams, etc.)
+    /// Returns nil if the entire note was cruft.
+    static func stripVideoConferenceCruft(_ text: String) -> String? {
+        let lines = text.components(separatedBy: "\n")
+        var filtered: [String] = []
+        var skipping = false
+
+        for line in lines {
+            let trimmed = line.trimmingCharacters(in: .whitespacesAndNewlines)
+            let lower = trimmed.lowercased()
+
+            // Start skipping at common Zoom / conferencing section markers
+            if lower.hasPrefix("──────────")
+                || lower.hasPrefix("-]")  // Zoom's "-::~:~::~:~:~:~:" delimiter
+                || lower.contains("do not edit this section")
+                || lower.contains("zoom meeting")  && lower.contains("join")
+                || lower.hasPrefix("join zoom meeting")
+                || lower.hasPrefix("join microsoft teams meeting")
+                || lower.hasPrefix("join google meet")
+                || lower.hasPrefix("meeting id:")
+                || lower.hasPrefix("passcode:")
+                || lower.hasPrefix("password:")
+                || lower.hasPrefix("meeting password:")
+                || lower.hasPrefix("one tap mobile")
+                || lower.hasPrefix("dial by your location")
+                || lower.hasPrefix("find your local number")
+                || lower.hasPrefix("meeting host:")
+                || lower.hasPrefix("host:")
+                || lower == "-::~:~::~:~:~:~:~:~:~:~:~:~:~:~:~:~:~:~:~:~:~:~:~:~:~:~:~:~:~:~:~:~:~:~:~:~:~:~::~:~::-"
+            {
+                skipping = true
+                continue
+            }
+
+            // Skip individual lines that are clearly conferencing boilerplate
+            if isConferencingLine(lower) {
+                continue
+            }
+
+            // Stop skipping at a blank line after cruft (possible real content follows)
+            if skipping && trimmed.isEmpty {
+                // Stay in skipping mode — consecutive blank lines in cruft sections
+                continue
+            }
+
+            // If still skipping, check if this line looks like real content
+            if skipping {
+                if looksLikeRealContent(trimmed) {
+                    skipping = false
+                    filtered.append(line)
+                }
+                // Otherwise keep skipping
+                continue
+            }
+
+            filtered.append(line)
+        }
+
+        let result = filtered.joined(separator: "\n").trimmingCharacters(in: .whitespacesAndNewlines)
+        return result.isEmpty ? nil : result
+    }
+
+    private static func isConferencingLine(_ lower: String) -> Bool {
+        // Zoom join link
+        if lower.contains("zoom.us/j/") || lower.contains("zoom.us/w/") { return true }
+        // Teams join link
+        if lower.contains("teams.microsoft.com/l/meetup-join") { return true }
+        // Google Meet link
+        if lower.contains("meet.google.com/") && !lower.contains(" ") { return true }
+        // Phone dial-in numbers (lines that are mostly digits, dashes, +, spaces)
+        if lower.hasPrefix("+") && lower.filter({ $0.isNumber }).count >= 7 { return true }
+        // Meeting ID / Passcode lines with numbers
+        if (lower.hasPrefix("id:") || lower.hasPrefix("passcode:") || lower.hasPrefix("password:"))
+            && lower.filter({ $0.isNumber }).count >= 3 { return true }
+        // Webinar ID
+        if lower.hasPrefix("webinar id:") { return true }
+        // "US" or country dial-in labels
+        if lower.count < 40 && lower.filter({ $0.isNumber }).count >= 7 { return true }
+        // Zoom's separator
+        if lower.contains("~:~:~:~") { return true }
+        return false
+    }
+
+    private static func looksLikeRealContent(_ text: String) -> Bool {
+        // Real content is typically a sentence or heading with enough alphabetic characters
+        let alphaCount = text.filter({ $0.isLetter }).count
+        return alphaCount >= 15 && !text.lowercased().contains("zoom") && !text.lowercased().contains("dial")
     }
 
     // MARK: - Data Loading

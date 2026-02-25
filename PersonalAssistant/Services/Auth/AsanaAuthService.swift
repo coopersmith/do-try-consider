@@ -1,6 +1,7 @@
-import AuthenticationServices
 import CryptoKit
 import Foundation
+import UIKit
+import WebKit
 
 @Observable
 final class AsanaAuthService: NSObject {
@@ -8,7 +9,7 @@ final class AsanaAuthService: NSObject {
 
     // MARK: - Configuration
     // Register your app at https://app.asana.com/0/developer-console
-    // Set redirect URI to: personalassistant://oauth-callback
+    // Set redirect URI to: https://localhost/oauth-callback
     private let clientID = "1213289525288309"
     private let clientSecret = "816602782b952dbe93a2fc11eee51142"
     private let redirectURI = "https://localhost/oauth-callback"
@@ -17,7 +18,6 @@ final class AsanaAuthService: NSObject {
 
     private(set) var isAuthenticating = false
 
-    private var authContinuation: CheckedContinuation<URL, Error>?
     private var codeVerifier: String?
 
     private override init() {
@@ -26,6 +26,7 @@ final class AsanaAuthService: NSObject {
 
     // MARK: - OAuth2 + PKCE Flow
 
+    @MainActor
     func authenticate() async throws -> AsanaTokenResponse {
         isAuthenticating = true
         defer { isAuthenticating = false }
@@ -50,35 +51,41 @@ final class AsanaAuthService: NSObject {
 
         let authURL = components.url!
 
-        // Present auth session
-        let callbackURL = try await withCheckedThrowingContinuation { continuation in
-            authContinuation = continuation
-
-            let session = ASWebAuthenticationSession(
-                url: authURL,
-                callbackURLScheme: "https"
-            ) { [weak self] url, error in
+        // Present OAuth web view and wait for redirect
+        let callbackURL = try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<URL, Error>) in
+            let oauthVC = OAuthWebViewController(
+                authURL: authURL,
+                redirectHost: "localhost",
+                redirectPath: "/oauth-callback"
+            ) { url, error in
                 if let error {
-                    self?.authContinuation?.resume(throwing: error)
-                    self?.authContinuation = nil
+                    continuation.resume(throwing: error)
                     return
                 }
                 guard let url else {
-                    self?.authContinuation?.resume(throwing: AsanaAuthError.noCallbackURL)
-                    self?.authContinuation = nil
+                    continuation.resume(throwing: AsanaAuthError.noCallbackURL)
                     return
                 }
-                self?.authContinuation?.resume(returning: url)
-                self?.authContinuation = nil
+                continuation.resume(returning: url)
             }
 
-            session.presentationContextProvider = self
-            session.prefersEphemeralWebBrowserSession = false
+            let navController = UINavigationController(rootViewController: oauthVC)
+            navController.modalPresentationStyle = .formSheet
 
-            if !session.start() {
+            guard let scene = UIApplication.shared.connectedScenes
+                .compactMap({ $0 as? UIWindowScene }).first,
+                let window = scene.windows.first(where: { $0.isKeyWindow }),
+                let rootVC = window.rootViewController else {
                 continuation.resume(throwing: AsanaAuthError.sessionStartFailed)
-                authContinuation = nil
+                return
             }
+
+            // Find the topmost presented view controller
+            var presenter = rootVC
+            while let presented = presenter.presentedViewController {
+                presenter = presented
+            }
+            presenter.present(navController, animated: true)
         }
 
         // Extract authorization code from callback
@@ -88,12 +95,6 @@ final class AsanaAuthService: NSObject {
 
         // Exchange code for tokens
         return try await exchangeCodeForTokens(code: code, verifier: verifier)
-    }
-
-    func handleCallback(url: URL) {
-        // This is called by the app delegate for custom URL scheme handling
-        // ASWebAuthenticationSession handles its own callbacks, but this
-        // serves as a fallback for deep linking
     }
 
     func refreshToken(_ refreshToken: String) async throws -> AsanaTokenResponse {
@@ -172,21 +173,73 @@ final class AsanaAuthService: NSObject {
     }
 }
 
-// MARK: - ASWebAuthenticationPresentationContextProviding
+// MARK: - OAuth Web View Controller
 
-extension AsanaAuthService: ASWebAuthenticationPresentationContextProviding {
-    func presentationAnchor(for session: ASWebAuthenticationSession) -> ASPresentationAnchor {
-        #if os(iOS)
-        let scene = UIApplication.shared.connectedScenes
-            .compactMap { $0 as? UIWindowScene }
-            .first
-        if let window = scene?.windows.first(where: { $0.isKeyWindow }) {
-            return window
+private final class OAuthWebViewController: UIViewController, WKNavigationDelegate {
+    private let authURL: URL
+    private let redirectHost: String
+    private let redirectPath: String
+    private var completion: ((URL?, Error?) -> Void)?
+    private var webView: WKWebView!
+
+    init(authURL: URL, redirectHost: String, redirectPath: String, completion: @escaping (URL?, Error?) -> Void) {
+        self.authURL = authURL
+        self.redirectHost = redirectHost
+        self.redirectPath = redirectPath
+        self.completion = completion
+        super.init(nibName: nil, bundle: nil)
+    }
+
+    @available(*, unavailable)
+    required init?(coder: NSCoder) { fatalError() }
+
+    override func viewDidLoad() {
+        super.viewDidLoad()
+
+        title = "Sign in with Asana"
+        navigationItem.leftBarButtonItem = UIBarButtonItem(
+            barButtonSystemItem: .cancel,
+            target: self,
+            action: #selector(cancelTapped)
+        )
+
+        let config = WKWebViewConfiguration()
+        config.websiteDataStore = .nonPersistent()
+        webView = WKWebView(frame: view.bounds, configuration: config)
+        webView.autoresizingMask = [.flexibleWidth, .flexibleHeight]
+        webView.navigationDelegate = self
+        view.addSubview(webView)
+
+        webView.load(URLRequest(url: authURL))
+    }
+
+    @objc private func cancelTapped() {
+        dismiss(animated: true) {
+            self.completion?(nil, AsanaAuthError.sessionStartFailed)
+            self.completion = nil
         }
-        return UIWindow(windowScene: scene!)
-        #else
-        return NSWindow()
-        #endif
+    }
+
+    // MARK: - WKNavigationDelegate
+
+    func webView(
+        _ webView: WKWebView,
+        decidePolicyFor navigationAction: WKNavigationAction,
+        decisionHandler: @escaping (WKNavigationActionPolicy) -> Void
+    ) {
+        guard let url = navigationAction.request.url,
+              url.host == redirectHost,
+              url.path == redirectPath else {
+            decisionHandler(.allow)
+            return
+        }
+
+        // Intercept the localhost redirect — extract the auth code
+        decisionHandler(.cancel)
+        dismiss(animated: true) {
+            self.completion?(url, nil)
+            self.completion = nil
+        }
     }
 }
 

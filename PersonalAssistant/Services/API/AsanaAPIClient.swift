@@ -11,20 +11,22 @@ final class AsanaAPIClient: Sendable {
 
     // MARK: - Workspaces
 
-    func getWorkspaces() async throws -> [AsanaWorkspace] {
+    func getWorkspaces(accountID: String) async throws -> [AsanaWorkspace] {
         let response: AsanaResponse<[AsanaWorkspace]> = try await request(
             path: "/workspaces",
-            queryItems: [URLQueryItem(name: "opt_fields", value: "name,is_organization")]
+            queryItems: [URLQueryItem(name: "opt_fields", value: "name,is_organization")],
+            accountID: accountID
         )
         return response.data
     }
 
     // MARK: - User
 
-    func getCurrentUser() async throws -> AsanaUser {
+    func getCurrentUser(accountID: String) async throws -> AsanaUser {
         let response: AsanaResponse<AsanaUser> = try await request(
             path: "/users/me",
-            queryItems: [URLQueryItem(name: "opt_fields", value: "name,email,photo,workspaces")]
+            queryItems: [URLQueryItem(name: "opt_fields", value: "name,email,photo,workspaces")],
+            accountID: accountID
         )
         return response.data
     }
@@ -34,7 +36,8 @@ final class AsanaAPIClient: Sendable {
     func getMyTasks(
         workspaceID: String,
         completedSince: Date? = nil,
-        modifiedSince: Date? = nil
+        modifiedSince: Date? = nil,
+        accountID: String
     ) async throws -> [AsanaTask] {
         var queryItems = [
             URLQueryItem(name: "assignee", value: "me"),
@@ -48,7 +51,8 @@ final class AsanaAPIClient: Sendable {
 
         let response: AsanaResponse<[AsanaTask]> = try await request(
             path: "/tasks",
-            queryItems: queryItems
+            queryItems: queryItems,
+            accountID: accountID
         )
         return response.data
     }
@@ -56,7 +60,8 @@ final class AsanaAPIClient: Sendable {
     func getTasksDueInRange(
         workspaceID: String,
         startDate: Date,
-        endDate: Date
+        endDate: Date,
+        accountID: String
     ) async throws -> [AsanaTask] {
         let response: AsanaResponse<[AsanaTask]> = try await request(
             path: "/tasks",
@@ -65,7 +70,8 @@ final class AsanaAPIClient: Sendable {
                 URLQueryItem(name: "workspace", value: workspaceID),
                 URLQueryItem(name: "completed_since", value: "now"),
                 URLQueryItem(name: "opt_fields", value: "name,notes,completed,completed_at,due_on,due_at,start_on,projects.name,workspace.name,permalink_url"),
-            ]
+            ],
+            accountID: accountID
         )
 
         return response.data.filter { task in
@@ -74,39 +80,41 @@ final class AsanaAPIClient: Sendable {
         }
     }
 
-    func getOverdueTasks(workspaceID: String) async throws -> [AsanaTask] {
-        let tasks = try await getMyTasks(workspaceID: workspaceID, completedSince: Date())
+    func getOverdueTasks(workspaceID: String, accountID: String) async throws -> [AsanaTask] {
+        let tasks = try await getMyTasks(workspaceID: workspaceID, completedSince: Date(), accountID: accountID)
         return tasks.filter { $0.isOverdue }
     }
 
-    func getTasksCompletedToday(workspaceID: String) async throws -> [AsanaTask] {
+    func getTasksCompletedToday(workspaceID: String, accountID: String) async throws -> [AsanaTask] {
         let startOfToday = Calendar.current.startOfDay(for: Date())
-        let tasks = try await getMyTasks(workspaceID: workspaceID, completedSince: startOfToday)
+        let tasks = try await getMyTasks(workspaceID: workspaceID, completedSince: startOfToday, accountID: accountID)
         return tasks.filter { $0.completed == true }
     }
 
-    func getTask(id: String) async throws -> AsanaTask {
+    func getTask(id: String, accountID: String) async throws -> AsanaTask {
         let response: AsanaResponse<AsanaTask> = try await request(
             path: "/tasks/\(id)",
-            queryItems: [URLQueryItem(name: "opt_fields", value: "name,notes,html_notes,completed,completed_at,due_on,due_at,start_on,created_at,modified_at,assignee.name,projects.name,workspace.name,parent.name,permalink_url")]
+            queryItems: [URLQueryItem(name: "opt_fields", value: "name,notes,html_notes,completed,completed_at,due_on,due_at,start_on,created_at,modified_at,assignee.name,projects.name,workspace.name,parent.name,permalink_url")],
+            accountID: accountID
         )
         return response.data
     }
 
     // MARK: - Task Mutations
 
-    func createTask(_ task: AsanaTaskCreate) async throws -> AsanaTask {
+    func createTask(_ task: AsanaTaskCreate, accountID: String) async throws -> AsanaTask {
         let body = try JSONEncoder().encode(["data": task])
 
         let response: AsanaResponse<AsanaTask> = try await request(
             path: "/tasks",
             method: "POST",
-            body: body
+            body: body,
+            accountID: accountID
         )
         return response.data
     }
 
-    func completeTask(id: String) async throws -> AsanaTask {
+    func completeTask(id: String, accountID: String) async throws -> AsanaTask {
         let body = try JSONSerialization.data(
             withJSONObject: ["data": ["completed": true]],
             options: []
@@ -115,12 +123,13 @@ final class AsanaAPIClient: Sendable {
         let response: AsanaResponse<AsanaTask> = try await request(
             path: "/tasks/\(id)",
             method: "PUT",
-            body: body
+            body: body,
+            accountID: accountID
         )
         return response.data
     }
 
-    func updateTask(id: String, fields: [String: Any]) async throws -> AsanaTask {
+    func updateTask(id: String, fields: [String: Any], accountID: String) async throws -> AsanaTask {
         let body = try JSONSerialization.data(
             withJSONObject: ["data": fields],
             options: []
@@ -129,22 +138,24 @@ final class AsanaAPIClient: Sendable {
         let response: AsanaResponse<AsanaTask> = try await request(
             path: "/tasks/\(id)",
             method: "PUT",
-            body: body
+            body: body,
+            accountID: accountID
         )
         return response.data
     }
 
     // MARK: - Stories (Comments)
 
-    func getTaskComments(taskID: String) async throws -> [AsanaStory] {
+    func getTaskComments(taskID: String, accountID: String) async throws -> [AsanaStory] {
         let response: AsanaResponse<[AsanaStory]> = try await request(
             path: "/tasks/\(taskID)/stories",
-            queryItems: [URLQueryItem(name: "opt_fields", value: "created_at,created_by.name,text,type")]
+            queryItems: [URLQueryItem(name: "opt_fields", value: "created_at,created_by.name,text,type")],
+            accountID: accountID
         )
         return response.data.filter { $0.isComment }
     }
 
-    func addTaskComment(taskID: String, text: String) async throws -> AsanaStory {
+    func addTaskComment(taskID: String, text: String, accountID: String) async throws -> AsanaStory {
         let body = try JSONSerialization.data(
             withJSONObject: ["data": ["text": text]],
             options: []
@@ -153,21 +164,23 @@ final class AsanaAPIClient: Sendable {
         let response: AsanaResponse<AsanaStory> = try await request(
             path: "/tasks/\(taskID)/stories",
             method: "POST",
-            body: body
+            body: body,
+            accountID: accountID
         )
         return response.data
     }
 
     // MARK: - Projects
 
-    func getProjects(workspaceID: String) async throws -> [AsanaProject] {
+    func getProjects(workspaceID: String, accountID: String) async throws -> [AsanaProject] {
         let response: AsanaResponse<[AsanaProject]> = try await request(
             path: "/projects",
             queryItems: [
                 URLQueryItem(name: "workspace", value: workspaceID),
                 URLQueryItem(name: "opt_fields", value: "name,color,workspace.name"),
                 URLQueryItem(name: "archived", value: "false"),
-            ]
+            ],
+            accountID: accountID
         )
         return response.data
     }
@@ -179,9 +192,10 @@ final class AsanaAPIClient: Sendable {
         method: String = "GET",
         queryItems: [URLQueryItem] = [],
         body: Data? = nil,
+        accountID: String,
         retryCount: Int = 0
     ) async throws -> T {
-        let token = try await TokenManager.shared.getValidAsanaToken()
+        let token = try await TokenManager.shared.getValidToken(for: accountID)
 
         var components = URLComponents(string: baseURL + path)!
         if !queryItems.isEmpty {
@@ -219,7 +233,7 @@ final class AsanaAPIClient: Sendable {
             }
             let delay = pow(2.0, Double(retryCount + 1))
             try await Task.sleep(for: .seconds(delay))
-            return try await self.request(path: path, method: method, queryItems: queryItems, body: body, retryCount: retryCount + 1)
+            return try await self.request(path: path, method: method, queryItems: queryItems, body: body, accountID: accountID, retryCount: retryCount + 1)
 
         case 401:
             throw AsanaAPIError.unauthorized

@@ -20,7 +20,7 @@ struct SettingsView: View {
                             VStack(alignment: .leading) {
                                 Text("Asana")
                                     .font(AppTheme.subheadlineFont)
-                                Text(viewModel.isAsanaConnected ? "Connected" : "Not connected")
+                                Text(viewModel.asanaStatusText)
                                     .font(AppTheme.captionFont)
                                     .foregroundStyle(viewModel.isAsanaConnected ? AppTheme.urgencyGreen : AppTheme.textSecondary)
                             }

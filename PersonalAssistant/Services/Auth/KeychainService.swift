@@ -3,6 +3,9 @@ import Security
 
 enum KeychainKey: String {
     case asanaAccessToken = "com.personalassistant.asana.accessToken"
+    case asanaRefreshToken = "com.personalassistant.asana.refreshToken"
+    case asanaTokenExpiry = "com.personalassistant.asana.tokenExpiry"
+    case asanaAccounts = "com.personalassistant.asana.accounts"
     case granolaAPIKey = "com.personalassistant.granola.apiKey"
     case claudeAPIKey = "com.personalassistant.claude.apiKey"
 }

@@ -2,6 +2,7 @@ import SwiftUI
 
 struct TaskDetailView: View {
     let taskID: String
+    let accountID: String
 
     @State private var task: AsanaTask?
     @State private var isLoading = true
@@ -269,7 +270,7 @@ struct TaskDetailView: View {
         error = nil
 
         do {
-            task = try await asana.getTask(id: taskID)
+            task = try await asana.getTask(id: taskID, accountID: accountID)
         } catch {
             self.error = error.localizedDescription
         }
@@ -280,7 +281,7 @@ struct TaskDetailView: View {
     private func completeTask() async {
         isCompleting = true
         do {
-            task = try await asana.completeTask(id: taskID)
+            task = try await asana.completeTask(id: taskID, accountID: accountID)
         } catch {
             self.error = error.localizedDescription
         }
@@ -290,7 +291,7 @@ struct TaskDetailView: View {
     private func loadComments() async {
         isLoadingComments = true
         do {
-            comments = try await asana.getTaskComments(taskID: taskID)
+            comments = try await asana.getTaskComments(taskID: taskID, accountID: accountID)
         } catch {
             print("Failed to load comments: \(error)")
         }
@@ -303,7 +304,7 @@ struct TaskDetailView: View {
 
         isPostingComment = true
         do {
-            let newComment = try await asana.addTaskComment(taskID: taskID, text: text)
+            let newComment = try await asana.addTaskComment(taskID: taskID, text: text, accountID: accountID)
             comments.append(newComment)
             commentText = ""
         } catch {
@@ -316,7 +317,7 @@ struct TaskDetailView: View {
         isUpdatingDate = true
         do {
             let dateString = DateFormatting.isoDateOnly(selectedDate)
-            task = try await asana.updateTask(id: taskID, fields: ["due_on": dateString])
+            task = try await asana.updateTask(id: taskID, fields: ["due_on": dateString], accountID: accountID)
             showDatePicker = false
         } catch {
             self.error = error.localizedDescription

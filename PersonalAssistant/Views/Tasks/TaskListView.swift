@@ -121,8 +121,8 @@ struct TaskListView: View {
         }
         .insetGroupedListStyle()
         .warmListBackground()
-        .navigationDestination(for: String.self) { taskID in
-            TaskDetailView(taskID: taskID)
+        .navigationDestination(for: TaskDestination.self) { dest in
+            TaskDetailView(taskID: dest.taskID, accountID: dest.accountID)
         }
     }
 
@@ -131,7 +131,10 @@ struct TaskListView: View {
         if !tasks.isEmpty {
             Section {
                 ForEach(tasks) { task in
-                    NavigationLink(value: task.gid) {
+                    NavigationLink(value: TaskDestination(
+                        taskID: task.gid,
+                        accountID: viewModel.taskAccountMap[task.gid] ?? ""
+                    )) {
                         TaskRowView(task: task)
                     }
                     .listRowBackground(AppTheme.adaptiveCard)

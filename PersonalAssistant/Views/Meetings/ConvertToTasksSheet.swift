@@ -11,6 +11,8 @@ struct ConvertToTasksSheet: View {
     @State private var extractionError: String?
     @State private var createdCount = 0
     @State private var isCreating = false
+    @State private var availableWorkspaces: [WorkspaceChoice] = []
+    @State private var selectedWorkspaceIndex: Int = 0
 
     private let claude = ClaudeAPIClient.shared
     private let asana = AsanaAPIClient.shared
@@ -20,6 +22,17 @@ struct ConvertToTasksSheet: View {
         case extracting
         case reviewing
         case complete
+    }
+
+    struct WorkspaceChoice: Identifiable {
+        let id: String  // workspace GID
+        let workspace: AsanaWorkspace
+        let accountID: String
+        let accountName: String
+
+        var displayName: String {
+            "\(workspace.displayName) (\(accountName))"
+        }
     }
 
     var body: some View {
@@ -45,6 +58,7 @@ struct ConvertToTasksSheet: View {
         }
         .task {
             await extractActionItems()
+            await loadWorkspaces()
         }
     }
 
@@ -84,6 +98,21 @@ struct ConvertToTasksSheet: View {
                     Text("Action items from \"\(meetingTitle)\"")
                         .font(AppTheme.captionFont)
                 }
+
+                // Workspace picker (only when multiple available)
+                if availableWorkspaces.count > 1 {
+                    Section {
+                        Picker("Create in", selection: $selectedWorkspaceIndex) {
+                            ForEach(Array(availableWorkspaces.enumerated()), id: \.offset) { index, choice in
+                                Text(choice.displayName).tag(index)
+                            }
+                        }
+                        .listRowBackground(AppTheme.adaptiveCard)
+                    } header: {
+                        Text("Workspace")
+                            .font(AppTheme.captionFont)
+                    }
+                }
             }
             .insetGroupedListStyle()
             .warmListBackground()
@@ -111,7 +140,7 @@ struct ConvertToTasksSheet: View {
                     }
                     .buttonStyle(.borderedProminent)
                     .tint(AppTheme.accent)
-                    .disabled(selectedCount == 0 || isCreating)
+                    .disabled(selectedCount == 0 || isCreating || availableWorkspaces.isEmpty)
                 }
                 .padding(.horizontal)
                 .padding(.bottom, 8)
@@ -146,6 +175,24 @@ struct ConvertToTasksSheet: View {
 
     private var selectedCount: Int {
         actionItems.filter(\.isSelected).count
+    }
+
+    // MARK: - Load Workspaces
+
+    private func loadWorkspaces() async {
+        var choices: [WorkspaceChoice] = []
+        for account in tokenManager.asanaAccounts {
+            let workspaces = (try? await asana.getWorkspaces(accountID: account.userGID)) ?? []
+            for ws in workspaces {
+                choices.append(WorkspaceChoice(
+                    id: ws.gid,
+                    workspace: ws,
+                    accountID: account.userGID,
+                    accountName: account.userName
+                ))
+            }
+        }
+        availableWorkspaces = choices
     }
 
     // MARK: - Extraction
@@ -222,17 +269,16 @@ struct ConvertToTasksSheet: View {
     // MARK: - Task Creation
 
     private func createTasks() async {
+        guard selectedWorkspaceIndex < availableWorkspaces.count else {
+            extractionError = "No workspace selected."
+            return
+        }
+
         isCreating = true
         let selectedItems = actionItems.filter(\.isSelected)
+        let choice = availableWorkspaces[selectedWorkspaceIndex]
 
         do {
-            let workspaces = try await asana.getWorkspaces()
-            guard let workspace = workspaces.first else {
-                extractionError = "No Asana workspace found."
-                isCreating = false
-                return
-            }
-
             var created = 0
             for item in selectedItems {
                 let provenance = "Source: \(meetingTitle) meeting notes"
@@ -248,11 +294,11 @@ struct ConvertToTasksSheet: View {
                     notes: taskNotes,
                     dueOn: item.dueDate,
                     projects: nil,
-                    workspace: workspace.gid,
+                    workspace: choice.workspace.gid,
                     assignee: "me"
                 )
 
-                _ = try await asana.createTask(task)
+                _ = try await asana.createTask(task, accountID: choice.accountID)
                 created += 1
             }
 

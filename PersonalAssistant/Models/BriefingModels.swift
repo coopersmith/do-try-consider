@@ -68,6 +68,7 @@ struct BriefingItem: Identifiable {
     let badge: BadgeInfo?
     let urgency: Urgency
     let taskGID: String?
+    let accountID: String?
     let emoji: String?
 
     enum Urgency {
@@ -92,6 +93,7 @@ struct BriefingItem: Identifiable {
         badge: BadgeInfo? = nil,
         urgency: Urgency = .normal,
         taskGID: String? = nil,
+        accountID: String? = nil,
         emoji: String? = nil
     ) {
         self.id = id
@@ -100,8 +102,16 @@ struct BriefingItem: Identifiable {
         self.badge = badge
         self.urgency = urgency
         self.taskGID = taskGID
+        self.accountID = accountID
         self.emoji = emoji
     }
+}
+
+// MARK: - Task Navigation Destination
+
+struct TaskDestination: Hashable {
+    let taskID: String
+    let accountID: String
 }
 
 // MARK: - AI Summary Cards
@@ -210,6 +220,35 @@ struct BriefingSummaryCard: Identifiable {
 
 import SwiftUI
 
+// MARK: - Unified Briefing Section
+
+struct UnifiedBriefingSection: Identifiable {
+    let id = UUID()
+    let key: SectionKey
+    let aiText: String?
+    let items: [BriefingItem]
+
+    enum SectionKey: String {
+        case greeting
+        case attention
+        case completedToday
+        case meetings
+        case comingThisWeek
+        case lookingAhead
+
+        var displayTitle: String {
+            switch self {
+            case .greeting: return "" // greeting uses viewModel.greeting
+            case .attention: return "Needs Your Attention"
+            case .completedToday: return "Completed Today"
+            case .meetings: return "Today's Meetings"
+            case .comingThisWeek: return "Coming This Week"
+            case .lookingAhead: return "Looking Ahead"
+            }
+        }
+    }
+}
+
 // MARK: - Raw Briefing Data (pre-AI processing)
 
 struct BriefingData {
@@ -220,6 +259,7 @@ struct BriefingData {
     let calendarEvents: [CalendarMeetingItem]
     let meetingDetails: [GranolaNoteDetail]
     let workspaces: [AsanaWorkspace]
+    let taskAccountMap: [String: String]  // taskGID → accountID
 
     var contextForClaude: String {
         var context = "Current date: \(DateFormatting.fullDate(Date()))\n\n"

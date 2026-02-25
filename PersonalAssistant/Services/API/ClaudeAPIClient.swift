@@ -18,7 +18,7 @@ final class ClaudeAPIClient: Sendable {
     static let tools: [[String: Any]] = [
         [
             "name": "create_asana_task",
-            "description": "Create a new task in Asana. Use this when the user asks to create a task, add a to-do, or set a reminder.",
+            "description": "Create a new task in Asana. Use this when the user asks to create a task, add a to-do, or set a reminder. When multiple workspaces are available, you MUST ask the user which workspace to use and provide the workspace_id.",
             "input_schema": [
                 "type": "object",
                 "properties": [
@@ -26,7 +26,7 @@ final class ClaudeAPIClient: Sendable {
                     "notes": ["type": "string", "description": "Task description or notes"],
                     "due_on": ["type": "string", "description": "Due date in YYYY-MM-DD format"],
                     "project_name": ["type": "string", "description": "Project name to add the task to (optional)"],
-                    "workspace_name": ["type": "string", "description": "Workspace name (optional, defaults to first workspace)"],
+                    "workspace_id": ["type": "string", "description": "The workspace GID to create the task in. Required when multiple workspaces exist. Get available workspace IDs from context."],
                 ],
                 "required": ["name"],
             ] as [String: Any],

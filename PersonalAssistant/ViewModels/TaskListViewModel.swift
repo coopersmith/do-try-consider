@@ -8,6 +8,9 @@ final class TaskListViewModel {
     var isLoading = false
     var error: String?
 
+    // Account mapping
+    var taskAccountMap: [String: String] = [:]  // taskGID → accountID
+
     // Filters
     var selectedWorkspace: AsanaWorkspace?
     var showCompleted = false
@@ -78,18 +81,30 @@ final class TaskListViewModel {
         error = nil
 
         do {
-            workspaces = try await asana.getWorkspaces()
-
+            var allWorkspaces: [AsanaWorkspace] = []
             var allTasks: [AsanaTask] = []
-            for workspace in workspaces {
-                let tasks = try await asana.getMyTasks(
-                    workspaceID: workspace.gid,
-                    completedSince: showCompleted ? Calendar.current.date(byAdding: .day, value: -7, to: Date()) : Date()
-                )
-                allTasks.append(contentsOf: tasks)
+            var newMap: [String: String] = [:]
+
+            for account in tokenManager.asanaAccounts {
+                let accountWorkspaces = try await asana.getWorkspaces(accountID: account.userGID)
+                allWorkspaces.append(contentsOf: accountWorkspaces)
+
+                for workspace in accountWorkspaces {
+                    let tasks = try await asana.getMyTasks(
+                        workspaceID: workspace.gid,
+                        completedSince: showCompleted ? Calendar.current.date(byAdding: .day, value: -7, to: Date()) : Date(),
+                        accountID: account.userGID
+                    )
+                    for task in tasks {
+                        newMap[task.gid] = account.userGID
+                    }
+                    allTasks.append(contentsOf: tasks)
+                }
             }
 
+            workspaces = allWorkspaces
             tasks = allTasks
+            taskAccountMap = newMap
         } catch {
             self.error = error.localizedDescription
         }
@@ -98,8 +113,14 @@ final class TaskListViewModel {
     }
 
     func completeTask(_ task: AsanaTask) async {
+        let accountID = taskAccountMap[task.gid] ?? tokenManager.asanaAccounts.first?.userGID
+        guard let accountID else {
+            self.error = "Could not determine which account owns this task."
+            return
+        }
+
         do {
-            _ = try await asana.completeTask(id: task.gid)
+            _ = try await asana.completeTask(id: task.gid, accountID: accountID)
             if let index = tasks.firstIndex(where: { $0.gid == task.gid }) {
                 // Remove from list or mark as completed
                 if !showCompleted {

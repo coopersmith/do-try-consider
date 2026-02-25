@@ -181,6 +181,18 @@ struct AsanaTaskCreate: Codable {
     }
 }
 
+// MARK: - Account (Multi-Account Support)
+
+struct AsanaAccount: Codable, Identifiable {
+    let userGID: String
+    var userName: String
+    var userEmail: String?
+    var accessToken: String
+    var refreshToken: String?
+    var tokenExpiresAt: TimeInterval? // seconds since 1970
+    var id: String { userGID }
+}
+
 // MARK: - OAuth Token Response
 
 struct AsanaTokenResponse: Codable {

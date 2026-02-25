@@ -3,11 +3,16 @@ import Foundation
 @Observable
 @MainActor
 final class SettingsViewModel {
-    // Asana
+    // Asana (multi-account)
     var isAsanaConnected: Bool { TokenManager.shared.isAsanaAuthenticated }
-    var asanaUser: AsanaUser?
-    var asanaWorkspaces: [AsanaWorkspace] = []
-    var asanaToken: String = ""
+
+    struct AsanaAccountInfo: Identifiable {
+        let id: String  // userGID
+        let user: AsanaUser
+        let workspaces: [AsanaWorkspace]
+    }
+    var asanaAccountInfos: [AsanaAccountInfo] = []
+
     var isSavingAsana = false
     var asanaError: String?
 
@@ -51,42 +56,87 @@ final class SettingsViewModel {
 
     // MARK: - Asana
 
-    func saveAsanaToken() async {
-        let token = asanaToken.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !token.isEmpty else { return }
+    var asanaStatusText: String {
+        let count = tokenManager.asanaAccounts.count
+        if count == 0 { return "Not connected" }
+        if count == 1 { return "Connected" }
+        return "\(count) accounts connected"
+    }
 
+    func authenticateWithAsana() async {
         isSavingAsana = true
         asanaError = nil
 
         do {
-            try tokenManager.storeAsanaToken(token)
-            asanaToken = "" // Clear from memory
+            let response = try await AsanaAuthService.shared.authenticate()
 
-            // Verify by fetching user info
-            asanaUser = try await asana.getCurrentUser()
-            asanaWorkspaces = try await asana.getWorkspaces()
+            // Fetch user info using a temporary token approach:
+            // Store temporarily so getCurrentUser can work, then properly add
+            // We need the user info before we can properly store the account.
+            // Use the token directly to fetch user info.
+            let user = try await fetchUserWithToken(response.accessToken)
+
+            // Check for duplicate
+            if tokenManager.asanaAccounts.contains(where: { $0.userGID == user.gid }) {
+                // Update existing account tokens
+                try tokenManager.addAsanaAccount(response, user: user)
+                asanaError = nil
+            } else {
+                try tokenManager.addAsanaAccount(response, user: user)
+            }
+
+            await loadAsanaInfo()
         } catch {
-            try? tokenManager.clearAsanaTokens()
-            asanaError = "Invalid token: \(error.localizedDescription)"
+            asanaError = error.localizedDescription
         }
 
         isSavingAsana = false
     }
 
-    func disconnectAsana() {
+    func disconnectAsanaAccount(id: String) {
+        try? tokenManager.removeAsanaAccount(id: id)
+        asanaAccountInfos.removeAll { $0.id == id }
+    }
+
+    func disconnectAllAsana() {
         try? tokenManager.clearAsanaTokens()
-        asanaUser = nil
-        asanaWorkspaces = []
+        asanaAccountInfos = []
     }
 
     func loadAsanaInfo() async {
         guard isAsanaConnected else { return }
-        do {
-            asanaUser = try await asana.getCurrentUser()
-            asanaWorkspaces = try await asana.getWorkspaces()
-        } catch {
-            asanaError = error.localizedDescription
+
+        var infos: [AsanaAccountInfo] = []
+
+        for account in tokenManager.asanaAccounts {
+            do {
+                // Handle migration placeholder
+                if account.userGID == "migrated" {
+                    let user = try await asana.getCurrentUser(accountID: account.userGID)
+                    try tokenManager.updateMigratedAccount(user: user)
+                    let workspaces = try await asana.getWorkspaces(accountID: user.gid)
+                    infos.append(AsanaAccountInfo(id: user.gid, user: user, workspaces: workspaces))
+                } else {
+                    let user = try await asana.getCurrentUser(accountID: account.userGID)
+                    let workspaces = try await asana.getWorkspaces(accountID: account.userGID)
+                    infos.append(AsanaAccountInfo(id: account.userGID, user: user, workspaces: workspaces))
+                }
+            } catch {
+                asanaError = error.localizedDescription
+            }
         }
+
+        asanaAccountInfos = infos
+    }
+
+    /// Fetch user info directly using a bearer token (for initial auth before account is stored)
+    private func fetchUserWithToken(_ token: String) async throws -> AsanaUser {
+        let url = URL(string: "https://app.asana.com/api/1.0/users/me?opt_fields=name,email,photo,workspaces")!
+        var request = URLRequest(url: url)
+        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        let (data, _) = try await URLSession.shared.data(for: request)
+        let response = try JSONDecoder().decode(AsanaResponse<AsanaUser>.self, from: data)
+        return response.data
     }
 
     // MARK: - Granola

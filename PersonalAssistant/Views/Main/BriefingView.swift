@@ -6,19 +6,21 @@ struct BriefingView: View {
 
     var body: some View {
         NavigationStack {
-            ScrollView {
-                VStack(spacing: AppTheme.sectionSpacing) {
+            ScrollView(.vertical, showsIndicators: false) {
+                VStack(spacing: 36) {
                     if viewModel.isLoading && viewModel.briefing == nil {
                         briefingLoadingView
                     } else if let error = viewModel.error, viewModel.briefing == nil {
                         ErrorStateView(error) {
                             Task { await viewModel.loadBriefing() }
                         }
-                    } else if let briefing = viewModel.briefing {
-                        briefingContent(briefing)
+                    } else if viewModel.briefing != nil {
+                        briefingContent
                     }
                 }
-                .padding()
+                .padding(.horizontal, 20)
+                .padding(.vertical, 24)
+                .frame(maxWidth: .infinity)
             }
             .warmScrollBackground()
             .inlineNavigationBarTitle()
@@ -51,8 +53,8 @@ struct BriefingView: View {
                     await viewModel.loadBriefing()
                 }
             }
-            .navigationDestination(for: String.self) { taskGID in
-                TaskDetailView(taskID: taskGID)
+            .navigationDestination(for: TaskDestination.self) { dest in
+                TaskDetailView(taskID: dest.taskID, accountID: dest.accountID)
             }
         }
     }
@@ -60,118 +62,116 @@ struct BriefingView: View {
     // MARK: - Briefing Content
 
     @ViewBuilder
-    private func briefingContent(_ briefing: Briefing) -> some View {
-        // Greeting
-        Text(viewModel.greeting)
-            .font(AppTheme.largeTitleFont)
-            .foregroundStyle(AppTheme.textPrimary)
-            .frame(maxWidth: .infinity, alignment: .leading)
+    private var briefingContent: some View {
+        let sections = viewModel.unifiedSections
 
-        // AI Summary Cards — one per category
-        if !briefing.aiSummaryCards.isEmpty {
-            ForEach(briefing.aiSummaryCards) { card in
-                BriefingSummaryCardView(card: card)
-            }
-        } else if let summary = briefing.aiSummary {
-            // Fallback: single card if parsing yielded nothing
-            VStack(alignment: .leading, spacing: 8) {
-                Label("AI Summary", systemImage: "sparkles")
-                    .font(AppTheme.captionFont)
-                    .fontWeight(.semibold)
-                    .foregroundStyle(AppTheme.accent)
-
-                MarkdownTextView(text: summary)
-                    .font(AppTheme.bodyFont)
-            }
-            .padding(AppTheme.cardPadding)
-            .background(
-                RoundedRectangle(cornerRadius: AppTheme.cornerRadiusCard)
-                    .fill(AppTheme.accent.opacity(0.08))
-            )
-            .overlay(
-                RoundedRectangle(cornerRadius: AppTheme.cornerRadiusCard)
-                    .stroke(AppTheme.accent.opacity(0.2), lineWidth: 1)
-            )
-        }
-
-        // Sections
-        ForEach(briefing.sections) { section in
-            BriefingSectionView(section: section)
-        }
-    }
-
-    // MARK: - Loading
-
-    private var briefingLoadingView: some View {
-        VStack(spacing: 16) {
-            ForEach(0..<3, id: \.self) { _ in
-                VStack(alignment: .leading, spacing: 8) {
-                    ShimmerView()
-                        .frame(width: 120, height: 20)
-                    ShimmerView()
-                        .frame(height: 60)
-                    ShimmerView()
-                        .frame(height: 40)
+        if sections.isEmpty {
+            emptyStateView
+        } else {
+            ForEach(sections) { section in
+                switch section.key {
+                case .greeting:
+                    greetingSection(aiText: section.aiText)
+                default:
+                    standardSection(section)
                 }
-                .padding(AppTheme.cardPadding)
-                .background(AppTheme.adaptiveCard)
-                .clipShape(RoundedRectangle(cornerRadius: AppTheme.cornerRadiusCard))
             }
         }
     }
-}
 
-// MARK: - AI Summary Card View
+    // MARK: - Greeting Section
 
-struct BriefingSummaryCardView: View {
-    let card: BriefingSummaryCard
+    private func greetingSection(aiText: String?) -> some View {
+        VStack(alignment: .leading, spacing: 14) {
+            Text(viewModel.greeting)
+                .font(AppTheme.largeTitleFont)
+                .foregroundStyle(AppTheme.textPrimary)
 
-    var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            // Category label above the card
-            Label(card.category.rawValue, systemImage: card.category.icon)
-                .font(AppTheme.captionFont)
-                .fontWeight(.semibold)
-                .foregroundStyle(card.category.accentColor)
-
-            // Card body
-            MarkdownTextView(text: card.content)
-                .font(AppTheme.bodyFont)
-                .padding(AppTheme.cardPadding)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .background(
-                    RoundedRectangle(cornerRadius: AppTheme.cornerRadiusCard)
-                        .fill(AppTheme.adaptiveCard)
-                )
-                .overlay(
-                    RoundedRectangle(cornerRadius: AppTheme.cornerRadiusCard)
-                        .stroke(card.category.accentColor.opacity(0.2), lineWidth: 1)
-                )
-                .shadow(color: .black.opacity(0.03), radius: 6, x: 0, y: 2)
+            if let text = aiText {
+                MarkdownTextView(text: text)
+                    .font(AppTheme.bodyFont)
+                    .foregroundStyle(AppTheme.textPrimary)
+                    .lineSpacing(4)
+            }
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
-}
 
-// MARK: - Section View
+    // MARK: - Standard Section (title + AI text + cards)
 
-struct BriefingSectionView: View {
-    let section: BriefingSection
+    private func standardSection(_ section: UnifiedBriefingSection) -> some View {
+        VStack(alignment: .leading, spacing: 16) {
+            Text(section.key.displayTitle)
+                .font(AppTheme.largeTitleFont)
+                .foregroundStyle(AppTheme.textPrimary)
 
-    var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            // Section header — standalone above cards
-            Label(section.title, systemImage: section.icon)
-                .font(AppTheme.sectionHeaderFont)
+            if let text = section.aiText {
+                MarkdownTextView(text: text)
+                    .font(AppTheme.bodyFont)
+                    .foregroundStyle(AppTheme.textPrimary)
+                    .lineSpacing(4)
+            }
 
-            // Each item as its own card
             ForEach(section.items) { item in
-                if let taskGID = item.taskGID {
-                    NavigationLink(value: taskGID) {
+                if let taskGID = item.taskGID, let accountID = item.accountID {
+                    NavigationLink(value: TaskDestination(taskID: taskGID, accountID: accountID)) {
                         BriefingTaskCardView(item: item)
                     }
                     .buttonStyle(.plain)
                 } else {
                     BriefingItemCardView(item: item)
+                }
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    // MARK: - Empty State
+
+    private var emptyStateView: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            Text(viewModel.greeting)
+                .font(AppTheme.largeTitleFont)
+                .foregroundStyle(AppTheme.textPrimary)
+
+            Text(viewModel.currentBriefingType == .morning
+                 ? "No tasks or meetings found for today."
+                 : "No activity recorded today.")
+                .font(AppTheme.bodyFont)
+                .foregroundStyle(AppTheme.textSecondary)
+
+            Text("Connect your accounts in Settings to see your data here.")
+                .font(AppTheme.captionFont)
+                .foregroundStyle(AppTheme.textSecondary)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    // MARK: - Loading
+
+    private var briefingLoadingView: some View {
+        VStack(alignment: .leading, spacing: 36) {
+            // Greeting shimmer
+            VStack(alignment: .leading, spacing: 14) {
+                ShimmerView()
+                    .frame(width: 200, height: 32)
+                ShimmerView()
+                    .frame(height: 48)
+            }
+
+            // Section shimmers
+            ForEach(0..<2, id: \.self) { _ in
+                VStack(alignment: .leading, spacing: 16) {
+                    ShimmerView()
+                        .frame(width: 180, height: 28)
+                    ShimmerView()
+                        .frame(height: 40)
+                    // Card-shaped shimmers
+                    ForEach(0..<2, id: \.self) { _ in
+                        ShimmerView()
+                            .frame(height: 56)
+                            .clipShape(RoundedRectangle(cornerRadius: AppTheme.cornerRadiusCard))
+                    }
                 }
             }
         }

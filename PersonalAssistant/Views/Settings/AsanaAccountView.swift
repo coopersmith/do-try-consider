@@ -2,25 +2,23 @@ import SwiftUI
 
 struct AsanaAccountView: View {
     @Environment(SettingsViewModel.self) private var viewModel
-    @State private var showToken = false
 
     var body: some View {
-        @Bindable var vm = viewModel
-
         List {
-            if viewModel.isAsanaConnected {
-                // Connected state
-                Section {
-                    if let user = viewModel.asanaUser {
+            if !viewModel.asanaAccountInfos.isEmpty {
+                // Connected accounts
+                ForEach(viewModel.asanaAccountInfos) { info in
+                    Section {
+                        // User info
                         HStack {
                             Image(systemName: "person.circle.fill")
                                 .font(.largeTitle)
                                 .foregroundStyle(.orange)
 
                             VStack(alignment: .leading) {
-                                Text(user.name)
+                                Text(info.user.name)
                                     .font(AppTheme.headlineFont)
-                                if let email = user.email {
+                                if let email = info.user.email {
                                     Text(email)
                                         .font(AppTheme.captionFont)
                                         .foregroundStyle(AppTheme.textSecondary)
@@ -28,40 +26,53 @@ struct AsanaAccountView: View {
                             }
                         }
                         .listRowBackground(AppTheme.adaptiveCard)
-                    }
-                } header: {
-                    Text("Account")
-                }
 
-                // Workspaces
-                if !viewModel.asanaWorkspaces.isEmpty {
-                    Section {
-                        ForEach(viewModel.asanaWorkspaces) { workspace in
-                            HStack {
-                                Image(systemName: workspace.isOrganization == true ? "building.2" : "person")
-                                    .foregroundStyle(AppTheme.textSecondary)
-                                Text(workspace.displayName)
-                                Spacer()
-                                if workspace.isOrganization == true {
-                                    Text("Organization")
-                                        .font(AppTheme.captionFont)
+                        // Workspaces
+                        if !info.workspaces.isEmpty {
+                            ForEach(info.workspaces) { workspace in
+                                HStack {
+                                    Image(systemName: workspace.isOrganization == true ? "building.2" : "person")
                                         .foregroundStyle(AppTheme.textSecondary)
+                                    Text(workspace.displayName)
+                                    Spacer()
+                                    if workspace.isOrganization == true {
+                                        Text("Organization")
+                                            .font(AppTheme.captionFont)
+                                            .foregroundStyle(AppTheme.textSecondary)
+                                    }
                                 }
+                                .listRowBackground(AppTheme.adaptiveCard)
                             }
-                            .listRowBackground(AppTheme.adaptiveCard)
                         }
+
+                        // Disconnect this account
+                        Button(role: .destructive) {
+                            viewModel.disconnectAsanaAccount(id: info.id)
+                        } label: {
+                            Label("Disconnect", systemImage: "xmark.circle")
+                        }
+                        .listRowBackground(AppTheme.adaptiveCard)
                     } header: {
-                        Text("Workspaces (\(viewModel.asanaWorkspaces.count))")
+                        Text(info.user.name)
                     }
                 }
 
-                // Disconnect
+                // Add another account
                 Section {
-                    Button(role: .destructive) {
-                        viewModel.disconnectAsana()
+                    Button {
+                        Task { await viewModel.authenticateWithAsana() }
                     } label: {
-                        Label("Disconnect Asana", systemImage: "xmark.circle")
+                        HStack {
+                            if viewModel.isSavingAsana {
+                                ProgressView()
+                                    .tint(.orange)
+                            }
+                            Image(systemName: "plus.circle.fill")
+                                .foregroundStyle(.orange)
+                            Text("Add Another Account")
+                        }
                     }
+                    .disabled(viewModel.isSavingAsana)
                     .listRowBackground(AppTheme.adaptiveCard)
                 }
             } else {
@@ -75,7 +86,7 @@ struct AsanaAccountView: View {
                         Text("Connect Your Asana Account")
                             .font(AppTheme.headlineFont)
 
-                        Text("Enter your Asana Personal Access Token to see your tasks, projects, and workspaces.")
+                        Text("Sign in with your Asana account to see your tasks, projects, and workspaces.")
                             .font(AppTheme.subheadlineFont)
                             .foregroundStyle(AppTheme.textSecondary)
                             .multilineTextAlignment(.center)
@@ -85,43 +96,22 @@ struct AsanaAccountView: View {
                 }
 
                 Section {
-                    HStack {
-                        if showToken {
-                            TextField("Asana Personal Access Token", text: $vm.asanaToken)
-                                .textFieldStyle(.plain)
-                        } else {
-                            SecureField("Asana Personal Access Token", text: $vm.asanaToken)
-                                .textFieldStyle(.plain)
-                        }
-
-                        Button {
-                            showToken.toggle()
-                        } label: {
-                            Image(systemName: showToken ? "eye.slash" : "eye")
-                                .foregroundStyle(AppTheme.textSecondary)
-                        }
-                        .buttonStyle(.plain)
-                    }
-                    .listRowBackground(AppTheme.adaptiveCard)
-
                     Button {
-                        Task { await viewModel.saveAsanaToken() }
+                        Task { await viewModel.authenticateWithAsana() }
                     } label: {
                         HStack {
                             if viewModel.isSavingAsana {
                                 ProgressView()
                                     .tint(.white)
                             }
-                            Text("Connect")
+                            Text("Sign in with Asana")
                         }
                         .frame(maxWidth: .infinity)
                     }
                     .buttonStyle(.borderedProminent)
                     .tint(.orange)
-                    .disabled(viewModel.asanaToken.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || viewModel.isSavingAsana)
+                    .disabled(viewModel.isSavingAsana)
                     .listRowBackground(AppTheme.adaptiveCard)
-                } footer: {
-                    Text("Get your token from Asana \u{2192} Settings \u{2192} Apps \u{2192} Developer Apps \u{2192} Personal Access Token")
                 }
             }
 

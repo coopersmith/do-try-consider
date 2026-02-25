@@ -17,17 +17,19 @@ final class BriefingService {
         // Fetch data in parallel
         let data = try await fetchBriefingData(type: type)
 
-        // Build sections from raw data
-        briefing.sections = buildSections(from: data, type: type)
+        let hasClaude = (try? tokenManager.getClaudeAPIKey()) != nil
+
+        // Run emoji assignment and AI summary in parallel (both only need raw data)
+        async let emojiResult: [String: String] = hasClaude ? assignEmojis(from: data) : [:]
+        async let summaryResult: String? = hasClaude ? (try? generateAISummary(data: data, type: type)) : nil
+
+        let emojiMap = await emojiResult
+        briefing.sections = buildSections(from: data, type: type, emojiMap: emojiMap, taskAccountMap: data.taskAccountMap)
         briefing.isLoading = false
 
-        // Generate AI summary if Claude is configured
-        if let _ = try? tokenManager.getClaudeAPIKey() {
-            let summary = try? await generateAISummary(data: data, type: type)
+        if let summary = await summaryResult {
             briefing.aiSummary = summary
-            if let summary {
-                briefing.aiSummaryCards = BriefingSummaryCard.parse(from: summary)
-            }
+            briefing.aiSummaryCards = BriefingSummaryCard.parse(from: summary)
         }
 
         return briefing
@@ -41,19 +43,26 @@ final class BriefingService {
         var allUpcomingTasks: [AsanaTask] = []
         var allCompletedToday: [AsanaTask] = []
         var workspaces: [AsanaWorkspace] = []
+        var accountMap: [String: String] = [:]
 
-        // Fetch Asana data
-        if tokenManager.isAsanaAuthenticated {
-            workspaces = try await asana.getWorkspaces()
+        // Fetch Asana data across all accounts
+        for account in tokenManager.asanaAccounts {
+            let accountID = account.userGID
+            let accountWorkspaces = (try? await asana.getWorkspaces(accountID: accountID)) ?? []
+            workspaces.append(contentsOf: accountWorkspaces)
 
-            for workspace in workspaces {
-                async let overdue = asana.getOverdueTasks(workspaceID: workspace.gid)
-                async let completed = asana.getTasksCompletedToday(workspaceID: workspace.gid)
-                async let myTasks = asana.getMyTasks(workspaceID: workspace.gid, completedSince: Date())
+            for workspace in accountWorkspaces {
+                async let overdue = asana.getOverdueTasks(workspaceID: workspace.gid, accountID: accountID)
+                async let completed = asana.getTasksCompletedToday(workspaceID: workspace.gid, accountID: accountID)
+                async let myTasks = asana.getMyTasks(workspaceID: workspace.gid, completedSince: Date(), accountID: accountID)
 
                 let overdueResult = (try? await overdue) ?? []
                 let completedResult = (try? await completed) ?? []
                 let tasksResult = (try? await myTasks) ?? []
+
+                for task in overdueResult + completedResult + tasksResult {
+                    accountMap[task.gid] = accountID
+                }
 
                 allOverdueTasks.append(contentsOf: overdueResult)
                 allCompletedToday.append(contentsOf: completedResult)
@@ -97,47 +106,79 @@ final class BriefingService {
             completedToday: allCompletedToday,
             calendarEvents: calendarEvents,
             meetingDetails: meetingDetails,
-            workspaces: workspaces
+            workspaces: workspaces,
+            taskAccountMap: accountMap
         )
     }
 
-    // MARK: - Emoji Assignment
+    // MARK: - Emoji Assignment (Claude-powered)
 
-    private func emojiForTask(_ task: AsanaTask, section: String) -> String {
-        let name = task.name.lowercased()
+    private func assignEmojis(from data: BriefingData) async -> [String: String] {
+        let allTasks: [(gid: String, name: String, project: String?, section: String)] =
+            data.overdueTasks.map { ($0.gid, $0.name, $0.projects?.first?.name, "overdue") } +
+            data.tasksDueToday.map { ($0.gid, $0.name, $0.projects?.first?.name, "due today") } +
+            data.upcomingTasks.map { ($0.gid, $0.name, $0.projects?.first?.name, "upcoming") } +
+            data.completedToday.map { ($0.gid, $0.name, $0.projects?.first?.name, "completed") }
 
-        // Completed tasks get celebration emojis
-        if section == "completed" {
-            let celebrations = ["✅", "🎉", "💪", "⭐", "🏆", "👏", "🙌"]
-            let index = abs(task.gid.hashValue) % celebrations.count
-            return celebrations[index]
+        guard !allTasks.isEmpty else { return [:] }
+
+        var taskList = ""
+        for task in allTasks {
+            let project = task.project ?? "No project"
+            taskList += "- \(task.gid): \"\(task.name)\" [\(project)] (\(task.section))\n"
         }
 
-        // Keyword-based matching
-        if name.contains("bug") || name.contains("fix") { return "🐛" }
-        if name.contains("design") || name.contains("ui") || name.contains("mockup") { return "🎨" }
-        if name.contains("test") || name.contains("qa") { return "🧪" }
-        if name.contains("doc") || name.contains("write") || name.contains("blog") { return "📝" }
-        if name.contains("deploy") || name.contains("release") || name.contains("ship") { return "🚀" }
-        if name.contains("review") || name.contains("feedback") { return "🔍" }
-        if name.contains("meeting") || name.contains("sync") || name.contains("standup") { return "🤝" }
-        if name.contains("email") || name.contains("message") || name.contains("send") { return "📧" }
-        if name.contains("research") || name.contains("explore") { return "🔬" }
-        if name.contains("plan") || name.contains("roadmap") || name.contains("strategy") { return "🗺️" }
-        if name.contains("data") || name.contains("analytics") || name.contains("metric") { return "📊" }
-        if name.contains("security") || name.contains("auth") { return "🔒" }
-        if name.contains("api") || name.contains("integration") { return "🔌" }
-        if name.contains("clean") || name.contains("refactor") { return "🧹" }
+        let prompt = """
+        Assign exactly one emoji to each task. Think about what the task is actually about — the subject matter, not just keywords.
 
-        // Hash-based deterministic fallback
-        let fallbacks = ["📋", "📌", "💡", "🎯", "⚡", "🔧", "📦", "🏷️"]
-        let index = abs(task.gid.hashValue) % fallbacks.count
-        return fallbacks[index]
+        Context clues:
+        - "Henry" is a labrador retriever dog — use dog-related emojis
+        - For completed tasks, use a celebratory or achievement emoji that still relates to the task content
+        - Be literal and specific: toilets → 🚽, groceries → 🛒, cooking → 🍳, etc.
+        - Use the project name as context for ambiguous task names
+
+        Tasks:
+        \(taskList)
+        Return ONLY a JSON object mapping task ID to emoji, nothing else. Example: {"123": "🐕", "456": "🚽"}
+        """
+
+        do {
+            let messages = [ClaudeMessage(role: "user", content: .text(prompt))]
+            let response = try await claude.sendMessage(
+                messages: messages,
+                systemPrompt: "You assign emojis to tasks. Return only valid JSON. No markdown, no explanation."
+            )
+
+            // Parse JSON response — strip markdown fences if present
+            var jsonString = response.trimmingCharacters(in: .whitespacesAndNewlines)
+            if jsonString.hasPrefix("```") {
+                jsonString = jsonString
+                    .replacingOccurrences(of: "```json", with: "")
+                    .replacingOccurrences(of: "```", with: "")
+                    .trimmingCharacters(in: .whitespacesAndNewlines)
+            }
+
+            if let jsonData = jsonString.data(using: .utf8),
+               let dict = try? JSONSerialization.jsonObject(with: jsonData) as? [String: String] {
+                return dict
+            }
+        } catch {
+            // Fall through to empty map — buildSections uses fallback
+        }
+
+        return [:]
+    }
+
+    private static let fallbackEmojis = ["📋", "📌", "💡", "🎯", "⚡", "🔧", "📦", "✨"]
+
+    private func fallbackEmoji(for taskGID: String) -> String {
+        let index = abs(taskGID.hashValue) % Self.fallbackEmojis.count
+        return Self.fallbackEmojis[index]
     }
 
     // MARK: - Section Building
 
-    private func buildSections(from data: BriefingData, type: Briefing.BriefingType) -> [BriefingSection] {
+    private func buildSections(from data: BriefingData, type: Briefing.BriefingType, emojiMap: [String: String] = [:], taskAccountMap: [String: String] = [:]) -> [BriefingSection] {
         var sections: [BriefingSection] = []
 
         switch type {
@@ -156,7 +197,8 @@ final class BriefingService {
                             },
                             urgency: .critical,
                             taskGID: task.gid,
-                            emoji: emojiForTask(task, section: "overdue")
+                            accountID: taskAccountMap[task.gid],
+                            emoji: emojiMap[task.gid] ?? fallbackEmoji(for: task.gid)
                         )
                     }
                 ))
@@ -176,7 +218,8 @@ final class BriefingService {
                             },
                             urgency: .warning,
                             taskGID: task.gid,
-                            emoji: emojiForTask(task, section: "dueToday")
+                            accountID: taskAccountMap[task.gid],
+                            emoji: emojiMap[task.gid] ?? fallbackEmoji(for: task.gid)
                         )
                     }
                 ))
@@ -208,13 +251,35 @@ final class BriefingService {
                             title: task.name,
                             subtitle: task.dueDate.map { DateFormatting.shortDate($0) },
                             taskGID: task.gid,
-                            emoji: emojiForTask(task, section: "upcoming")
+                            accountID: taskAccountMap[task.gid],
+                            emoji: emojiMap[task.gid] ?? fallbackEmoji(for: task.gid)
                         )
                     }
                 ))
             }
 
         case .evening:
+            // Overdue tasks (also relevant in evening)
+            if !data.overdueTasks.isEmpty {
+                sections.append(BriefingSection(
+                    title: "Overdue",
+                    icon: "exclamationmark.triangle.fill",
+                    items: data.overdueTasks.map { task in
+                        BriefingItem(
+                            title: task.name,
+                            subtitle: "Due: \(task.dueOn ?? "unknown")",
+                            badge: task.workspace.map {
+                                BriefingItem.BadgeInfo(text: $0.displayName, color: .red)
+                            },
+                            urgency: .critical,
+                            taskGID: task.gid,
+                            accountID: taskAccountMap[task.gid],
+                            emoji: emojiMap[task.gid] ?? fallbackEmoji(for: task.gid)
+                        )
+                    }
+                ))
+            }
+
             // Completed today
             if !data.completedToday.isEmpty {
                 sections.append(BriefingSection(
@@ -227,7 +292,8 @@ final class BriefingService {
                                 BriefingItem.BadgeInfo(text: $0.displayName, color: .green)
                             },
                             taskGID: task.gid,
-                            emoji: emojiForTask(task, section: "completed")
+                            accountID: taskAccountMap[task.gid],
+                            emoji: emojiMap[task.gid] ?? fallbackEmoji(for: task.gid)
                         )
                     }
                 ))
@@ -245,7 +311,8 @@ final class BriefingService {
                             subtitle: "Was due today",
                             urgency: .warning,
                             taskGID: task.gid,
-                            emoji: emojiForTask(task, section: "stillOpen")
+                            accountID: taskAccountMap[task.gid],
+                            emoji: emojiMap[task.gid] ?? fallbackEmoji(for: task.gid)
                         )
                     }
                 ))
@@ -268,18 +335,6 @@ final class BriefingService {
             }
         }
 
-        // Add empty state if nothing
-        if sections.isEmpty {
-            sections.append(BriefingSection(
-                title: type == .morning ? "All Clear" : "Quiet Day",
-                icon: "sun.max.fill",
-                items: [BriefingItem(
-                    title: type == .morning ? "No tasks or meetings found for today." : "No activity recorded today.",
-                    subtitle: "Connect your accounts in Settings to see your data here."
-                )]
-            ))
-        }
-
         return sections
     }
 
@@ -293,39 +348,43 @@ final class BriefingService {
             Generate a morning briefing organized into categories. Use EXACTLY these markdown headings (include only categories that have relevant content):
 
             ### Priorities
-            Top 2-3 things to focus on today (1-2 sentences each).
+            1-2 sentences on what to focus on today and why. Do NOT list individual task names — those are shown separately as tappable cards.
 
             ### Overdue Alert
-            Only if there are overdue tasks. Be direct about what needs attention.
+            Only if there are overdue tasks. A brief sentence on the urgency or impact. Do NOT list individual task names.
 
             ### Meeting Insights
-            Only if there are recent meetings. Key takeaways or prep notes.
+            Only if there are meetings today. Key prep notes or what to expect. Do NOT list individual meeting names.
 
             ### Action Items
-            Bullet list of concrete next steps from tasks and meetings.
+            A brief sentence about suggested next steps or approach. Do NOT list individual task names — the app already shows them as interactive cards.
 
-            Keep each section to 2-4 sentences or bullets. Be concise and actionable.
+            IMPORTANT: Never list or repeat individual task or meeting names. The app displays those as tappable cards below your text. Your job is to add insight, context, and prioritization guidance — not to enumerate items.
+
+            Keep each section to 1-2 sentences. Be concise and actionable.
             """
         case .evening:
             prompt = """
             Generate an evening recap organized into categories. Use EXACTLY these markdown headings (include only categories that have relevant content):
 
             ### Progress
-            Celebrate completed work. What was accomplished today.
+            1-2 sentences celebrating what was accomplished today. Do NOT list individual task names — those are shown separately as tappable cards.
 
             ### Overdue Alert
-            Only if tasks were due today but not completed. Be constructive, not harsh.
+            Only if tasks were due today but not completed. A brief constructive sentence about the impact. Do NOT list individual task names.
 
             ### Meeting Insights
-            Only if there were meetings. Key outcomes and decisions.
+            Only if there were meetings. Key outcomes or decisions in 1-2 sentences. Do NOT list individual meeting names.
 
             ### Action Items
-            Bullet list of follow-ups for tomorrow.
+            A brief sentence about suggested follow-ups or approach for tomorrow. Do NOT list individual task names.
 
             ### Looking Ahead
             Brief note on what's coming tomorrow/this week.
 
-            Keep each section to 2-4 sentences or bullets. Be encouraging and constructive.
+            IMPORTANT: Never list or repeat individual task or meeting names. The app displays those as tappable cards below your text. Your job is to add insight, encouragement, and context — not to enumerate items.
+
+            Keep each section to 1-2 sentences. Be encouraging and constructive.
             """
         }
 
