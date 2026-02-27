@@ -16,6 +16,8 @@ struct TaskDetailView: View {
     @State private var commentText = ""
     @State private var isPostingComment = false
 
+    @Environment(\.openURL) private var openURL
+
     private let asana = AsanaAPIClient.shared
 
     var body: some View {
@@ -39,6 +41,17 @@ struct TaskDetailView: View {
         }
         .sheet(isPresented: $showDatePicker) {
             datePickerSheet
+        }
+        .toolbar {
+            ToolbarItem(placement: .primaryAction) {
+                Button {
+                    if let url = URL(string: "https://app.asana.com/0/0/\(taskID)") {
+                        openURL(url)
+                    }
+                } label: {
+                    Label("Open in Asana", systemImage: "arrow.up.right.square")
+                }
+            }
         }
     }
 

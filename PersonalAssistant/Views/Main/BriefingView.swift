@@ -191,7 +191,7 @@ struct BriefingTaskCardView: View {
                     .font(.title2)
             }
 
-            // Title + subtitle
+            // Title + subtitle + badge
             VStack(alignment: .leading, spacing: 2) {
                 Text(item.title)
                     .font(AppTheme.bodyFont)
@@ -203,14 +203,14 @@ struct BriefingTaskCardView: View {
                         .font(AppTheme.captionFont)
                         .foregroundStyle(AppTheme.textSecondary)
                 }
+
+                // Project badge
+                if let badge = item.badge {
+                    WorkspaceBadge(text: badge.text, color: badgeSwiftUIColor(badge.color))
+                }
             }
 
             Spacer()
-
-            // Workspace badge
-            if let badge = item.badge {
-                WorkspaceBadge(text: badge.text, color: badgeSwiftUIColor(badge.color))
-            }
 
             // Chevron
             Image(systemName: "chevron.right")
@@ -260,7 +260,7 @@ struct BriefingItemCardView: View {
                 .frame(width: 8, height: 8)
                 .padding(.top, 6)
 
-            // Title + subtitle
+            // Title + subtitle + badge
             VStack(alignment: .leading, spacing: 2) {
                 Text(item.title)
                     .font(AppTheme.bodyFont)
@@ -272,14 +272,14 @@ struct BriefingItemCardView: View {
                         .font(AppTheme.captionFont)
                         .foregroundStyle(AppTheme.textSecondary)
                 }
+
+                // Project badge
+                if let badge = item.badge {
+                    WorkspaceBadge(text: badge.text, color: badgeSwiftUIColor(badge.color))
+                }
             }
 
             Spacer()
-
-            // Badge
-            if let badge = item.badge {
-                WorkspaceBadge(text: badge.text, color: badgeSwiftUIColor(badge.color))
-            }
         }
         .padding(AppTheme.cardPadding)
         .background(AppTheme.adaptiveCard)
