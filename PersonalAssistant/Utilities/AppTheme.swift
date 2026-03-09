@@ -22,35 +22,50 @@ private func adaptiveColor(light: UInt, dark: UInt) -> Color {
 
 enum AppTheme {
 
-    // MARK: Colors
+    // MARK: Colors — Flexoki by Steph Ango (https://stephango.com/flexoki)
 
-    /// Terracotta accent — primary brand color
-    static let accent = Color(hex: 0xD4654A)
+    // Base palette
+    static let black      = Color(hex: 0x100F0F)
+    static let paper      = Color(hex: 0xFFFCF0)
+    static let base950    = Color(hex: 0x1C1B1A)
+    static let base900    = Color(hex: 0x282726)
+    static let base850    = Color(hex: 0x343331)
+    static let base800    = Color(hex: 0x403E3C)
+    static let base600    = Color(hex: 0x6F6E69)
+    static let base500    = Color(hex: 0x878580)
+    static let base300    = Color(hex: 0xB7B5AC)
+    static let base200    = Color(hex: 0xCECDC3)
+    static let base150    = Color(hex: 0xDAD8CE)
+    static let base100    = Color(hex: 0xE6E4D9)
+    static let base50     = Color(hex: 0xF2F0E5)
 
-    /// Adaptive background — cream in light, warm charcoal in dark
-    static let adaptiveBackground = adaptiveColor(light: 0xFAF6F1, dark: 0x1C1816)
+    /// Accent — Flexoki Orange
+    static let accent = adaptiveColor(light: 0xBC5215, dark: 0xDA702C)
 
-    /// Adaptive card surface
-    static let adaptiveCard = adaptiveColor(light: 0xFFFDF9, dark: 0x2A2420)
+    /// Adaptive background — paper / base-950
+    static let adaptiveBackground = adaptiveColor(light: 0xFFFCF0, dark: 0x1C1B1A)
 
-    /// Adaptive secondary surface (section fills, dividers)
-    static let adaptiveSecondary = adaptiveColor(light: 0xF3EDE5, dark: 0x332C26)
+    /// Adaptive card surface — base-50 / base-900
+    static let adaptiveCard = adaptiveColor(light: 0xF2F0E5, dark: 0x282726)
 
-    /// Primary text — near-black warm tone
-    static let textPrimary = adaptiveColor(light: 0x2C2420, dark: 0xF5F0EB)
+    /// Adaptive secondary surface — base-100 / base-850
+    static let adaptiveSecondary = adaptiveColor(light: 0xE6E4D9, dark: 0x343331)
 
-    /// Secondary text
-    static let textSecondary = adaptiveColor(light: 0x8A7E74, dark: 0x9E9389)
+    /// Primary text — black / base-200
+    static let textPrimary = adaptiveColor(light: 0x100F0F, dark: 0xCECDC3)
 
-    // Urgency palette
-    static let urgencyRed = adaptiveColor(light: 0xC44B3F, dark: 0xE06558)
-    static let urgencyOrange = adaptiveColor(light: 0xD4854A, dark: 0xE09A60)
-    static let urgencyGreen = adaptiveColor(light: 0x5A9E6F, dark: 0x6DB882)
+    /// Secondary text — base-600 / base-500
+    static let textSecondary = adaptiveColor(light: 0x6F6E69, dark: 0x878580)
 
-    // Badge colors
-    static let badgeGranola = adaptiveColor(light: 0x9B59B6, dark: 0xB070CC)
-    static let badgeLocal = adaptiveColor(light: 0x2A9D8F, dark: 0x3AB8A8)
-    static let badgeCalendar = adaptiveColor(light: 0x3478F6, dark: 0x5A9CF6)
+    // Urgency palette — Flexoki semantic colors (600 light / 400 dark)
+    static let urgencyRed    = adaptiveColor(light: 0xAF3029, dark: 0xD14D41)
+    static let urgencyOrange = adaptiveColor(light: 0xBC5215, dark: 0xDA702C)
+    static let urgencyGreen  = adaptiveColor(light: 0x66800B, dark: 0x879A39)
+
+    // Badge colors — Flexoki accents (600 light / 400 dark)
+    static let badgeGranola  = adaptiveColor(light: 0x5E409D, dark: 0x8B7EC8) // Purple
+    static let badgeLocal    = adaptiveColor(light: 0x24837B, dark: 0x3AA99F) // Cyan
+    static let badgeCalendar = adaptiveColor(light: 0x205EA6, dark: 0x4385BE) // Blue
 
     // MARK: Typography — System Serif ("New York")
 

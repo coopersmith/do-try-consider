@@ -1,7 +1,7 @@
 import SwiftUI
 
 struct BriefingView: View {
-    @State private var viewModel = BriefingViewModel()
+    @Bindable var viewModel: BriefingViewModel
     @State private var showSettings = false
 
     var body: some View {
@@ -19,7 +19,8 @@ struct BriefingView: View {
                     }
                 }
                 .padding(.horizontal, 20)
-                .padding(.vertical, 24)
+                .padding(.top, 24)
+                .padding(.bottom, 90)
                 .frame(maxWidth: .infinity)
             }
             .warmScrollBackground()
@@ -79,37 +80,55 @@ struct BriefingView: View {
         }
     }
 
-    // MARK: - Greeting Section
+    // MARK: - Greeting Header
 
     private func greetingSection(aiText: String?) -> some View {
-        VStack(alignment: .leading, spacing: 14) {
+        VStack(alignment: .leading, spacing: 6) {
             Text(viewModel.greeting)
                 .font(AppTheme.largeTitleFont)
                 .foregroundStyle(AppTheme.textPrimary)
 
-            if let text = aiText {
-                MarkdownTextView(text: text)
-                    .font(AppTheme.bodyFont)
-                    .foregroundStyle(AppTheme.textPrimary)
-                    .lineSpacing(4)
+            HStack(spacing: 6) {
+                if let updatedText = viewModel.lastUpdatedText {
+                    Text(updatedText)
+                        .font(AppTheme.caption2Font)
+                        .foregroundStyle(AppTheme.textSecondary)
+                }
+
+                Button {
+                    Task { await viewModel.forceRefresh() }
+                } label: {
+                    Image(systemName: "arrow.clockwise")
+                        .font(.system(size: 10, weight: .medium))
+                        .foregroundStyle(AppTheme.textSecondary.opacity(0.7))
+                        .rotationEffect(.degrees(viewModel.isRefreshing ? 360 : 0))
+                        .animation(viewModel.isRefreshing ? .linear(duration: 1).repeatForever(autoreverses: false) : .default, value: viewModel.isRefreshing)
+                }
+                .disabled(viewModel.isRefreshing)
+            }
+
+            if let text = aiText, !text.isEmpty {
+                let title = viewModel.currentBriefingType == .evening ? "Today's Progress" : "Your Day Ahead"
+                briefingCard(title: title, text: text)
+                    .padding(.top, 8)
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
     }
 
-    // MARK: - Standard Section (title + AI text + cards)
+    // MARK: - Standard Section (title + AI text in card + item cards)
 
     private func standardSection(_ section: UnifiedBriefingSection) -> some View {
-        VStack(alignment: .leading, spacing: 16) {
-            Text(section.key.displayTitle)
-                .font(AppTheme.largeTitleFont)
-                .foregroundStyle(AppTheme.textPrimary)
-
+        VStack(alignment: .leading, spacing: 12) {
             if let text = section.aiText {
-                MarkdownTextView(text: text)
-                    .font(AppTheme.bodyFont)
-                    .foregroundStyle(AppTheme.textPrimary)
-                    .lineSpacing(4)
+                briefingCard(title: section.key.displayTitle, text: text)
+            } else if !section.items.isEmpty {
+                Text(section.key.displayTitle)
+                    .font(AppTheme.captionFont)
+                    .fontWeight(.semibold)
+                    .foregroundStyle(AppTheme.textSecondary)
+                    .textCase(.uppercase)
+                    .tracking(0.5)
             }
 
             ForEach(section.items) { item in
@@ -124,6 +143,28 @@ struct BriefingView: View {
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    // MARK: - Reusable Briefing Card
+
+    private func briefingCard(title: String?, text: String) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            if let title {
+                Text(title)
+                    .font(AppTheme.headlineFont)
+                    .foregroundStyle(AppTheme.textPrimary)
+            }
+
+            MarkdownTextView(text: text)
+                .font(AppTheme.subheadlineFont)
+                .foregroundStyle(AppTheme.textSecondary)
+                .lineSpacing(3)
+        }
+        .padding(14)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(AppTheme.adaptiveCard)
+        .clipShape(RoundedRectangle(cornerRadius: AppTheme.cornerRadiusCard))
+        .shadow(color: .black.opacity(0.04), radius: 8, x: 0, y: 2)
     }
 
     // MARK: - Empty State
@@ -194,13 +235,13 @@ struct BriefingTaskCardView: View {
             // Title + subtitle + badge
             VStack(alignment: .leading, spacing: 2) {
                 Text(item.title)
-                    .font(AppTheme.bodyFont)
-                    .fontWeight(item.urgency == .critical ? .semibold : .medium)
+                    .font(AppTheme.subheadlineFont)
+                    .fontWeight(item.urgency == .critical ? .semibold : .regular)
                     .foregroundStyle(AppTheme.textPrimary)
 
                 if let subtitle = item.subtitle {
                     Text(subtitle)
-                        .font(AppTheme.captionFont)
+                        .font(AppTheme.caption2Font)
                         .foregroundStyle(AppTheme.textSecondary)
                 }
 
@@ -214,10 +255,10 @@ struct BriefingTaskCardView: View {
 
             // Chevron
             Image(systemName: "chevron.right")
-                .font(.caption)
-                .foregroundStyle(AppTheme.textSecondary)
+                .font(.system(size: 10, weight: .medium))
+                .foregroundStyle(AppTheme.textSecondary.opacity(0.5))
         }
-        .padding(AppTheme.cardPadding)
+        .padding(14)
         .background(AppTheme.adaptiveCard)
         .clipShape(RoundedRectangle(cornerRadius: AppTheme.cornerRadiusCard))
         .overlay(
@@ -237,7 +278,7 @@ struct BriefingTaskCardView: View {
 
     private func badgeSwiftUIColor(_ color: BriefingItem.BadgeInfo.BadgeColor) -> Color {
         switch color {
-        case .blue: return .blue
+        case .blue: return AppTheme.badgeCalendar
         case .green: return AppTheme.urgencyGreen
         case .orange: return AppTheme.urgencyOrange
         case .red: return AppTheme.urgencyRed
@@ -263,13 +304,13 @@ struct BriefingItemCardView: View {
             // Title + subtitle + badge
             VStack(alignment: .leading, spacing: 2) {
                 Text(item.title)
-                    .font(AppTheme.bodyFont)
+                    .font(AppTheme.subheadlineFont)
                     .fontWeight(item.urgency == .critical ? .semibold : .regular)
                     .foregroundStyle(AppTheme.textPrimary)
 
                 if let subtitle = item.subtitle {
                     Text(subtitle)
-                        .font(AppTheme.captionFont)
+                        .font(AppTheme.caption2Font)
                         .foregroundStyle(AppTheme.textSecondary)
                 }
 
@@ -281,7 +322,7 @@ struct BriefingItemCardView: View {
 
             Spacer()
         }
-        .padding(AppTheme.cardPadding)
+        .padding(14)
         .background(AppTheme.adaptiveCard)
         .clipShape(RoundedRectangle(cornerRadius: AppTheme.cornerRadiusCard))
         .shadow(color: .black.opacity(0.04), radius: 8, x: 0, y: 2)
@@ -297,7 +338,7 @@ struct BriefingItemCardView: View {
 
     private func badgeSwiftUIColor(_ color: BriefingItem.BadgeInfo.BadgeColor) -> Color {
         switch color {
-        case .blue: return .blue
+        case .blue: return AppTheme.badgeCalendar
         case .green: return AppTheme.urgencyGreen
         case .orange: return AppTheme.urgencyOrange
         case .red: return AppTheme.urgencyRed

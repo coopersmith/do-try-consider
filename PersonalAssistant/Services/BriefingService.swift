@@ -90,12 +90,20 @@ final class BriefingService {
             calendarEvents = calendarService.fetchEvents(from: todayStart, to: todayEnd)
             calendarEvents = await noteMatching.matchNotes(to: calendarEvents)
 
-            // Fetch Granola details for matched events (for AI context)
-            for event in calendarEvents where event.hasGranolaNote {
-                if let noteID = event.granolaNoteID,
-                   let detail = try? await granola.getNote(id: noteID) {
-                    meetingDetails.append(detail)
+            // Fetch Granola details for matched events in parallel (for AI context)
+            meetingDetails = await withTaskGroup(of: GranolaNoteDetail?.self) { group in
+                for event in calendarEvents where event.hasGranolaNote {
+                    if let noteID = event.granolaNoteID {
+                        group.addTask { [granola] in
+                            try? await granola.getNote(id: noteID)
+                        }
+                    }
                 }
+                var results: [GranolaNoteDetail] = []
+                for await detail in group {
+                    if let detail { results.append(detail) }
+                }
+                return results
             }
         }
 

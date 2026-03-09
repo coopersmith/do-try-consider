@@ -1,6 +1,6 @@
 import Foundation
 
-struct Briefing: Identifiable {
+struct Briefing: Identifiable, Codable {
     let id: UUID
     let type: BriefingType
     let generatedAt: Date
@@ -9,7 +9,7 @@ struct Briefing: Identifiable {
     var aiSummaryCards: [BriefingSummaryCard]
     var isLoading: Bool
 
-    enum BriefingType {
+    enum BriefingType: String, Codable {
         case morning
         case evening
 
@@ -47,7 +47,7 @@ struct Briefing: Identifiable {
     }
 }
 
-struct BriefingSection: Identifiable {
+struct BriefingSection: Identifiable, Codable {
     let id: UUID
     let title: String
     let icon: String
@@ -61,7 +61,7 @@ struct BriefingSection: Identifiable {
     }
 }
 
-struct BriefingItem: Identifiable {
+struct BriefingItem: Identifiable, Codable {
     let id: UUID
     let title: String
     let subtitle: String?
@@ -71,17 +71,17 @@ struct BriefingItem: Identifiable {
     let accountID: String?
     let emoji: String?
 
-    enum Urgency {
+    enum Urgency: String, Codable {
         case normal
         case warning
         case critical
     }
 
-    struct BadgeInfo {
+    struct BadgeInfo: Codable {
         let text: String
         let color: BadgeColor
 
-        enum BadgeColor {
+        enum BadgeColor: String, Codable {
             case blue, green, orange, red, purple, gray
         }
     }
@@ -116,12 +116,12 @@ struct TaskDestination: Hashable {
 
 // MARK: - AI Summary Cards
 
-struct BriefingSummaryCard: Identifiable {
+struct BriefingSummaryCard: Identifiable, Codable {
     let id: UUID
     let category: Category
     let content: String
 
-    enum Category: String, CaseIterable {
+    enum Category: String, CaseIterable, Codable {
         case priorities = "Priorities"
         case overdue = "Overdue Alert"
         case meetings = "Meeting Insights"
@@ -149,7 +149,7 @@ struct BriefingSummaryCard: Identifiable {
             case .meetings: return AppTheme.badgeGranola
             case .actions: return AppTheme.urgencyOrange
             case .progress: return AppTheme.urgencyGreen
-            case .upcoming: return .blue
+            case .upcoming: return AppTheme.badgeCalendar
             case .general: return AppTheme.accent
             }
         }
@@ -222,13 +222,20 @@ import SwiftUI
 
 // MARK: - Unified Briefing Section
 
-struct UnifiedBriefingSection: Identifiable {
-    let id = UUID()
+struct UnifiedBriefingSection: Identifiable, Codable {
+    let id: UUID
     let key: SectionKey
     let aiText: String?
     let items: [BriefingItem]
 
-    enum SectionKey: String {
+    init(key: SectionKey, aiText: String?, items: [BriefingItem]) {
+        self.id = UUID()
+        self.key = key
+        self.aiText = aiText
+        self.items = items
+    }
+
+    enum SectionKey: String, Codable {
         case greeting
         case attention
         case completedToday

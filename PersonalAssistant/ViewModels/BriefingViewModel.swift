@@ -5,9 +5,13 @@ import Foundation
 final class BriefingViewModel {
     var briefing: Briefing?
     var isLoading = false
+    var isRefreshing = false
+    var isCacheStale = false
+    var lastCachedAt: Date?
     var error: String?
 
     private let briefingService = BriefingService()
+    private let cache = BriefingCacheService.shared
 
     var currentBriefingType: Briefing.BriefingType {
         let hour = Calendar.current.component(.hour, from: Date())
@@ -19,6 +23,15 @@ final class BriefingViewModel {
         if hour < 12 { return "Good Morning" }
         if hour < 17 { return "Good Afternoon" }
         return "Good Evening"
+    }
+
+    var lastUpdatedText: String? {
+        guard let cachedAt = lastCachedAt else { return nil }
+        let minutes = Int(-cachedAt.timeIntervalSinceNow / 60)
+        if minutes < 1 { return "Updated just now" }
+        if minutes < 60 { return "Updated \(minutes)m ago" }
+        let hours = minutes / 60
+        return "Updated \(hours)h ago"
     }
 
     var unifiedSections: [UnifiedBriefingSection] {
@@ -70,11 +83,31 @@ final class BriefingViewModel {
 
     func loadBriefing() async {
         guard !isLoading else { return }
+
+        // Try loading from disk cache first
+        if briefing == nil, let cached = cache.load() {
+            briefing = cached.briefing
+            lastCachedAt = cached.cachedAt
+            isCacheStale = cache.isStale(cached)
+
+            // If cache is fresh, we're done
+            if !isCacheStale { return }
+
+            // Cache is stale — refresh in background without showing loading skeleton
+            await refreshInBackground()
+            return
+        }
+
+        // No cache — full loading with skeleton
         isLoading = true
         error = nil
 
         do {
-            briefing = try await briefingService.generateBriefing(type: currentBriefingType)
+            let result = try await briefingService.generateBriefing(type: currentBriefingType)
+            briefing = result
+            lastCachedAt = Date()
+            isCacheStale = false
+            cache.save(result)
         } catch {
             self.error = error.localizedDescription
         }
@@ -83,7 +116,32 @@ final class BriefingViewModel {
     }
 
     func refresh() async {
-        briefing = nil
-        await loadBriefing()
+        // Keep existing briefing visible while refreshing
+        await refreshInBackground()
+    }
+
+    func forceRefresh() async {
+        await refreshInBackground()
+    }
+
+    private func refreshInBackground() async {
+        guard !isRefreshing else { return }
+        isRefreshing = true
+
+        do {
+            let result = try await briefingService.generateBriefing(type: currentBriefingType)
+            briefing = result
+            lastCachedAt = Date()
+            isCacheStale = false
+            cache.save(result)
+            error = nil
+        } catch {
+            // If we already have cached data, don't overwrite with error
+            if briefing == nil {
+                self.error = error.localizedDescription
+            }
+        }
+
+        isRefreshing = false
     }
 }

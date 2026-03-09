@@ -121,6 +121,7 @@ struct TaskListView: View {
         }
         .insetGroupedListStyle()
         .warmListBackground()
+        .contentMargins(.bottom, 80, for: .scrollContent)
         .navigationDestination(for: TaskDestination.self) { dest in
             TaskDetailView(taskID: dest.taskID, accountID: dest.accountID)
         }

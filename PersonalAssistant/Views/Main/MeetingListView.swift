@@ -199,6 +199,7 @@ struct MeetingListView: View {
         }
         .insetGroupedListStyle()
         .warmListBackground()
+        .contentMargins(.bottom, 80, for: .scrollContent)
         .navigationDestination(for: CalendarMeetingItem.self) { meeting in
             CalendarEventDetailView(meeting: meeting)
         }

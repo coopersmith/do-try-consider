@@ -86,6 +86,7 @@ final class SettingsViewModel {
             }
 
             await loadAsanaInfo()
+            BriefingCacheService.shared.clear()
         } catch {
             asanaError = error.localizedDescription
         }
@@ -96,11 +97,13 @@ final class SettingsViewModel {
     func disconnectAsanaAccount(id: String) {
         try? tokenManager.removeAsanaAccount(id: id)
         asanaAccountInfos.removeAll { $0.id == id }
+        BriefingCacheService.shared.clear()
     }
 
     func disconnectAllAsana() {
         try? tokenManager.clearAsanaTokens()
         asanaAccountInfos = []
+        BriefingCacheService.shared.clear()
     }
 
     func loadAsanaInfo() async {
@@ -150,6 +153,7 @@ final class SettingsViewModel {
                 try tokenManager.storeGranolaAPIKey(granolaAPIKey)
             }
             granolaAPIKey = "" // Clear from memory
+            BriefingCacheService.shared.clear()
         } catch {
             granolaError = error.localizedDescription
         }
@@ -158,6 +162,7 @@ final class SettingsViewModel {
     func clearGranolaAPIKey() {
         try? tokenManager.clearGranolaAPIKey()
         granolaAPIKey = ""
+        BriefingCacheService.shared.clear()
     }
 
     // MARK: - Claude
@@ -171,6 +176,7 @@ final class SettingsViewModel {
                 try tokenManager.storeClaudeAPIKey(claudeAPIKey)
             }
             claudeAPIKey = "" // Clear from memory
+            BriefingCacheService.shared.clear()
         } catch {
             claudeError = error.localizedDescription
         }
@@ -179,6 +185,7 @@ final class SettingsViewModel {
     func clearClaudeAPIKey() {
         try? tokenManager.clearClaudeAPIKey()
         claudeAPIKey = ""
+        BriefingCacheService.shared.clear()
     }
 
     // MARK: - Meeting Notes
